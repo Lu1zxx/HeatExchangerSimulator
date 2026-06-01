@@ -19,127 +19,7 @@ st.markdown("""
     padding:16px;font-family:'Courier New',monospace;font-size:13px;
     white-space:pre-wrap;line-height:1.6;color:#58d68d}
 input[type=text]{font-size:15px!important}
-.info-card{
-    background:#1a2332;border-left:4px solid #4a9eff;border-radius:6px;
-    padding:12px 16px;margin:8px 0;font-size:13px;line-height:1.6}
-.warn-card{
-    background:#2d2010;border-left:4px solid #ffaa00;border-radius:6px;
-    padding:12px 16px;margin:8px 0;font-size:13px}
-.ok-card{
-    background:#0d2a1a;border-left:4px solid #28a745;border-radius:6px;
-    padding:12px 16px;margin:8px 0;font-size:13px}
 </style>""", unsafe_allow_html=True)
-
-# ─── mensagens contextuais por arranjo ───────────────────────────
-MSGS_THETA = {
-    30: ("✅ **Triangular 30°** — arranjo mais compacto e eficiente para transferência de calor. "
-         "Recomendado para fluidos limpos. Maior ΔP pelo lado casco. "
-         "Mais difícil de limpar mecanicamente — prefira limpeza química."),
-    45: ("⚠️ **Rotacionado 45°** — compromisso entre eficiência e limpeza. "
-         "Desempenho térmico intermediário entre 30° e 90°. "
-         "Permite alguma limpeza mecânica. Bom para fluidos moderadamente sujos."),
-    60: ("ℹ️ **Triangular 60°** — similar ao 30°, mas com escoamento ligeiramente diferente. "
-         "Mesmo padrão de difícil limpeza mecânica. Menos comum na prática industrial."),
-    90: ("🔧 **Quadrado 90°** — menor eficiência térmica, mas permite limpeza mecânica por jateamento. "
-         "Indicado para fluidos sujos ou que incrustam. Menor ΔP no casco. "
-         "Use quando manutenção e limpeza são prioritárias."),
-}
-
-MSGS_NP = {
-    1: ("**1 passe** — arranjo mais simples. Fator F = 1,0 (contracorrente puro). "
-        "Adequado quando a razão de capacidades térmicas permite boa eficiência."),
-    2: ("**2 passes** — configuração mais comum na indústria. Aumenta velocidade nos tubos "
-        "e melhora h do lado tubo. Fator F calculado automaticamente. "
-        "⚠️ Verifique se F ≥ 0,75 para evitar ineficiência."),
-    4: ("**4 passes** — alta velocidade nos tubos, excelente h_t. "
-        "Ideal para fluidos de baixa viscosidade no lado tubo. "
-        "⚠️ ΔP no tubo cresce significativamente — verifique limites."),
-    6: ("**6 passes** — muito alto ΔP nos tubos. Usar somente quando h_t é criticamente baixo "
-        "e a queda de pressão é aceitável. Verifique retornos (curvas) e vibrações."),
-    8: ("**8 passes** — extremo. ΔP nos tubos muito elevado. Raramente justificável "
-        "a menos que o coeficiente convectivo interno seja o fator limitante dominante."),
-}
-
-MSGS_BC = {
-    "baixo":  ("🔽 **Corte < 20%** — janela de chicana pequena. Alta velocidade na janela, "
-               "risco de vibração dos tubos e erosão. ΔP elevado na janela. "
-               "Evite para fluidos abrasivos ou serviços de longa duração."),
-    "ideal":  ("✅ **Corte 20–35%** — faixa ideal segundo TEMA/Bell. Boa distribuição de fluxo, "
-               "fatores Jc e Jl próximos do ótimo. Mínimo risco de bypass e vibração."),
-    "alto":   ("⚠️ **Corte 35–45%** — janela grande. Jc começa a cair. Maior fração de fluxo "
-               "desviada pela janela. Pode reduzir h_s real significativamente."),
-    "muito_alto": ("❌ **Corte > 45%** — não recomendado. Fluxo mal distribuído, "
-                   "Jc muito baixo, eficiência comprometida. Reconsidere a geometria."),
-}
-
-MSGS_LBC_REL = {
-    "muito_pequeno": ("❌ **Lbc/Ds < 0,2** — chicanas muito próximas. Alto ΔP no casco, "
-                      "risco de vibração severa dos tubos. Aumente o espaçamento."),
-    "pequeno":       ("⚠️ **Lbc/Ds 0,2–0,4** — espaçamento apertado. Verifique vibração. "
-                      "Adequado para fluidos de baixa densidade ou alta velocidade desejada."),
-    "ideal":         ("✅ **Lbc/Ds 0,4–0,6** — espaçamento típico de projeto. "
-                      "Bom equilíbrio entre h_s e ΔP. Padrão TEMA para projeto inicial."),
-    "grande":        ("ℹ️ **Lbc/Ds > 0,6** — chicanas espaçadas. Menor ΔP e menor h_s. "
-                      "Útil para gases ou quando ΔP é fator limitante."),
-}
-
-def msg_bc(bc):
-    if bc < 20:   return MSGS_BC["baixo"]
-    if bc <= 35:  return MSGS_BC["ideal"]
-    if bc <= 45:  return MSGS_BC["alto"]
-    return MSGS_BC["muito_alto"]
-
-def msg_lbc_rel(Lbc, Ds):
-    if Ds <= 0: return ""
-    r = Lbc / Ds
-    if r < 0.20:  return MSGS_LBC_REL["muito_pequeno"]
-    if r < 0.40:  return MSGS_LBC_REL["pequeno"]
-    if r <= 0.60: return MSGS_LBC_REL["ideal"]
-    return MSGS_LBC_REL["grande"]
-
-def msg_np_theta(Np, theta):
-    """Mensagem combinada de Np + theta."""
-    linhas = []
-    if Np in MSGS_NP:
-        linhas.append(MSGS_NP[Np])
-    if theta in MSGS_THETA:
-        linhas.append(MSGS_THETA[theta])
-    return linhas
-
-def render_arranjo_info(prefix, Np, theta, Bc=None, Lbc=None, Ds=None):
-    """Renderiza painel de informações contextuais sobre o arranjo atual."""
-    with st.expander("💡 Informações sobre o arranjo atual", expanded=True):
-        msgs = msg_np_theta(Np, theta)
-        for m in msgs:
-            st.markdown(m)
-        if Bc is not None:
-            st.markdown(msg_bc(Bc))
-        if Lbc is not None and Ds is not None and Ds > 0:
-            m = msg_lbc_rel(Lbc, Ds)
-            if m:
-                st.markdown(m)
-
-def reynolds_regime_msg(Re_s, Re_t):
-    """Mensagens sobre regimes de escoamento."""
-    msgs = []
-    if Re_s < 400:
-        msgs.append("⚠️ **Re casco < 400** — correlação de Kern fora do intervalo recomendado. "
-                    "Resultados com menor confiança. Considere aumentar vazão ou reduzir Lbc.")
-    elif Re_s < 2000:
-        msgs.append("ℹ️ **Re casco 400–2000** — escoamento em transição no casco. "
-                    "Kern aplica com ressalvas. Bell-Delaware tende a ser mais preciso nessa faixa.")
-    else:
-        msgs.append("✅ **Re casco turbulento** — correlação de Kern dentro do intervalo válido.")
-
-    if Re_t < 2300:
-        msgs.append("⚠️ **Re tubo < 2300 (laminar)** — Sieder-Tate laminar aplicado (Nu = max 3,66, Sieder). "
-                    "Considere aumentar Np ou vazão para obter turbulência e melhorar h_t.")
-    elif Re_t < 10000:
-        msgs.append("ℹ️ **Re tubo em transição** — Gnielinski aplicado. "
-                    "Faixa de transição: resultados menos precisos que regime turbulento pleno.")
-    else:
-        msgs.append("✅ **Re tubo turbulento** — Sieder-Tate/Gnielinski plenamente aplicável.")
-    return msgs
 
 # ─── dados de referência ─────────────────────────────────────────
 MATERIAIS = {
@@ -414,38 +294,6 @@ def bd_dPs(ms,rho_s,mu_s,mws,d,Ltp,theta,geo,fat):
 # ─────────────────────────────────────────────────────────────────
 st.title("⚙️ Simulador Casco-e-Tubo")
 st.caption("**Kern** & **Bell-Delaware**  |  v4  |  Kern(1950) · Kakaç&Liu(2002) · Thulukkanam(2013) · TEMA")
-
-with st.expander("📖 Guia Rápido — Quando usar cada método e como interpretar arranjos", expanded=False):
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-**🔵 Método de Kern**
-- Projeto preliminar e estimativas rápidas
-- Re casco válido para 400 < Re < 10⁶
-- Não distingue bypass e vazamentos (conservador)
-- Use para triagem de geometrias candidatas
-
-**🟠 Bell-Delaware**
-- Projeto detalhado e verificação final
-- Corrige h_s real via fatores J (Jc, Jl, Jb, Js, Jr)
-- Mais preciso em geometrias com folgas TEMA reais
-- Recomendado para decisão final de compra/fabricação
-""")
-    with col2:
-        st.markdown("""
-**📐 Arranjo dos Tubos (θ)**
-| Ângulo | Compacidade | Limpeza | ΔP casco |
-|--------|-------------|---------|----------|
-| 30°    | Alta ✅     | Química apenas | Alto |
-| 45°    | Média       | Limitada | Médio  |
-| 90°    | Baixa       | Mecânica ✅ | Baixo |
-
-**🔢 Número de Passes (Np)**
-- Mais passes → maior v_t → maior h_t → maior ΔP_t
-- F < 0,75: ineficiente — aumente passes ou use 2 cascos
-- Verifique sempre ΔP_t vs. limite de serviço
-""")
-
 st.divider()
 
 # inicializa session_state para campos que precisam de preenchimento automático
@@ -550,8 +398,6 @@ with tab_k:
         k_theta=st.selectbox("Ângulo θ:",[30,45,60,90],key="k_theta")
         k_Np=st.selectbox("Passes Np:",[1,2,4,6,8],key="k_Np")
 
-        render_arranjo_info("k", k_Np, k_theta)
-
         # Estimar Db/Ds
         with st.expander("📐 Estimar Db → Ds (Coulson & Richardson)"):
             if st.button("Calcular Db e Ds",key="k_btn_db"):
@@ -609,11 +455,6 @@ with tab_k:
                 tub=kern_tubos(k_mt,k_rho_t,k_mu_t,k_cp_t,k_k_t,mw["mwf"],k_d,k_di,k_Lta,k_Nt,k_Np)
                 gl=coef_global(cas["hs"],tub["ht"],k_d,k_di,k_kpar,Q_W,dTlm,k_Rfe,k_Rfi,F)
                 Ai=k_Nt*math.pi*k_d*k_Lta; ex=(Ai/gl["A"]-1)*100 if gl["A"]>0 else 0
-
-                # mensagens de regime
-                with st.expander("🔬 Diagnóstico de Regimes de Escoamento", expanded=False):
-                    for rm in reynolds_regime_msg(cas["Res"], tub["Ret"]):
-                        st.markdown(rm)
 
                 # métricas
                 m1,m2,m3,m4=st.columns(4)
@@ -790,8 +631,6 @@ with tab_b:
         b_theta=st.selectbox("Ângulo θ:",[30,45,90],key="b_theta")
         b_Np=st.selectbox("Passes Np:",[1,2,4,6,8],key="b_Np")
 
-        render_arranjo_info("b", b_Np, b_theta, Bc=b_Bc, Lbc=b_Lbc, Ds=b_Ds)
-
         with st.expander("📐 Estimar Db → Ds (Coulson & Richardson)"):
             if st.button("Calcular Db e Ds",key="b_btn_db"):
                 try:
@@ -860,11 +699,6 @@ with tab_b:
                 gl=coef_global(cas["hs"],tub["ht"],b_d,b_di,b_kpar,Q_W,dTlm,b_Rfe,b_Rfi,F)
                 Ai=b_Nt*math.pi*b_d*b_Lta; ex=(Ai/gl["A"]-1)*100 if gl["A"]>0 else 0
                 PJ=fat["Jc"]*fat["Jl"]*fat["Jb"]*fat["Js"]*fat["Jr"]
-
-                # mensagens de regime
-                with st.expander("🔬 Diagnóstico de Regimes de Escoamento", expanded=False):
-                    for rm in reynolds_regime_msg(cas["Res"], tub["Ret"]):
-                        st.markdown(rm)
 
                 m1,m2,m3,m4=st.columns(4)
                 m1.metric("U (W/m²·K)",f"{gl['U']:.1f}")
