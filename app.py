@@ -619,7 +619,7 @@ with tab_k:
         k_Tci=parse(tinput("Tc,i — frio entrada (°C)","k_Tci","20"),"Tc,i")
         k_obj=st.radio("Objetivo:",["Th,o → calcula Tc,o","Tc,o → calcula Th,o"],
                        horizontal=True,key="k_obj")
-        if "Th,o" in k_obj:
+        if k_obj=="Th,o → calcula Tc,o":
             k_Tsaida=parse(tinput("Th,o (°C)","k_Tsaida_h","60"),"T saída")
         else:
             k_Tsaida=parse(tinput("Tc,o (°C)","k_Tsaida_c","40"),"T saída")
@@ -856,7 +856,7 @@ with tab_b:
         b_Thi=parse(tinput("Th,i — quente entrada (°C)","b_Thi","100"),"Th,i")
         b_Tci=parse(tinput("Tc,i — frio entrada (°C)","b_Tci","20"),"Tc,i")
         b_obj=st.radio("Objetivo:",["Th,o → calcula Tc,o","Tc,o → calcula Th,o"],horizontal=True,key="b_obj")
-        if "Th,o" in b_obj:
+        if b_obj=="Th,o → calcula Tc,o":
             b_Tsaida=parse(tinput("Th,o (°C)","b_Tsaida_h","60"),"T saída")
         else:
             b_Tsaida=parse(tinput("Tc,o (°C)","b_Tsaida_c","40"),"T saída")
@@ -964,12 +964,15 @@ with tab_b:
         st.divider()
         st.subheader("📏 Folgas TEMA")
         f_t=folgas_tema(b_Ds*1000)
+        # aplica staging ANTES de renderizar os widgets (evita StreamlitAPIException)
+        if st.session_state.pop("_tema_recalc", False):
+            st.session_state["b_Lbb"]=str(f_t["Lbb_mm"])
+            st.session_state["b_Ltb"]=str(f_t["Ltb_mm"])
         c1,c2=st.columns(2)
         b_Lbb=parse(tinput("Lbb (mm)","b_Lbb",str(f_t["Lbb_mm"])),"Lbb")/1000
         b_Ltb=parse(tinput("Ltb (mm)","b_Ltb","0.8"),"Ltb")/1000
         if st.button("↻ Recalcular folgas TEMA",key="b_tema"):
-            st.session_state["b_Lbb"]=str(f_t["Lbb_mm"])
-            st.session_state["b_Ltb"]=str(f_t["Ltb_mm"])
+            st.session_state["_tema_recalc"]=True
             st.rerun()
 
         st.divider()
