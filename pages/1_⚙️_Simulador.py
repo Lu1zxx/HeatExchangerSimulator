@@ -264,10 +264,21 @@ def resolver_T(obj,Thi,Tci,Tval,ms,cps,mt,cpt,Q_lat_s=0,Q_lat_t=0):
         Tho=Tval; Q=ms*cps*(Thi-Tho)+Q_lat_s
         if Q<=0: raise ValueError("Q ≤ 0 → Th,o deve ser menor que Th,i")
         Tco=Tci+(Q-Q_lat_t)/(mt*cpt)
+        if Tco >= Thi:
+            raise ValueError(
+                f"Tc,o calculado ({Tco:.1f} °C) ficou ≥ Th,i ({Thi:.1f} °C). "
+                f"Isso viola a 2ª Lei. Verifique as vazões (ṁₛ, ṁₜ) e os "
+                f"calores específicos (cp,s, cp,t) — provavelmente ṁₜ está "
+                f"pequeno demais para a carga térmica.")
     else:
         Tco=Tval; Q=mt*cpt*(Tco-Tci)+Q_lat_t
         if Q<=0: raise ValueError("Q ≤ 0 → Tc,o deve ser maior que Tc,i")
         Tho=Thi-(Q-Q_lat_s)/(ms*cps)
+        if Tho <= Tci:
+            raise ValueError(
+                f"Th,o calculado ({Tho:.1f} °C) ficou ≤ Tc,i ({Tci:.1f} °C). "
+                f"Isso viola a 2ª Lei. Verifique as vazões (ṁₛ, ṁₜ) e os "
+                f"calores específicos (cp,s, cp,t).")
     return Tho,Tco,Q
 
 def kern_geo(d,di,Lta,Ltp,theta,Ds,Lbc,Np):
@@ -412,12 +423,11 @@ def propriedades_fluido(nome, T_C, P_Pa=101325.0):
 #  NESTA ETAPA — com LaTeX (corrige fórmulas estranhas)
 # ═════════════════════════════════════════════════════════════════
 def render_nesta_etapa(pag):
-    """Conteúdo teórico da aba 'Nesta Etapa' — texto rico + LaTeX."""
+    """Conteúdo teórico da aba 'Nesta Etapa'."""
     if pag == 0:
         st.markdown("## 🌡️ Temperaturas e Objetivo")
-        st.markdown("Nesta etapa, você define as **temperaturas de entrada** dos "
-                    "dois fluidos e escolhe **qual temperatura de saída** o "
-                    "programa deve calcular.")
+        st.markdown("Nesta etapa você define as **temperaturas de entrada** dos dois "
+                    "fluidos e escolhe **qual temperatura de saída** o programa deve calcular.")
         st.markdown("### 📐 Fórmulas")
         st.markdown("**Balanço de energia (1ª Lei da Termodinâmica):**")
         st.latex(r"Q = \dot{m} \cdot c_p \cdot |\Delta T|")
@@ -428,9 +438,9 @@ def render_nesta_etapa(pag):
         st.markdown(r"onde $\Delta T_1 = T_{h,i} - T_{c,o}$ e $\Delta T_2 = T_{h,o} - T_{c,i}$")
         st.markdown("### 💥 Impacto no projeto")
         st.markdown("""
-- Essas temperaturas definem o **Q TOTAL** que o trocador precisa trocar — todo o resto do projeto (área, vazões, custo) escala com esse valor.
-- Quanto **menor** o ΔT entre os fluidos, **menor** a força motriz térmica (LMTD). Para o mesmo Q, isso exige **mais área** de troca.
-- Se a T de saída pedida for fisicamente impossível (violar a 2ª Lei), o programa avisa em vermelho.
+- Essas temperaturas definem o **Q TOTAL** do trocador.
+- Quanto **menor** o ΔT, **menor** a força motriz (LMTD) → mais área.
+- Se a T de saída violar a 2ª Lei, o programa avisa em vermelho.
 """)
         st.markdown("### 📖 Glossário")
         st.markdown(r"""
@@ -441,13 +451,13 @@ def render_nesta_etapa(pag):
 - $c_p$ — calor específico (J/kg·K)
 - $\Delta T$ — diferença de temperatura (°C)
 - LMTD — diferença de temperatura média logarítmica
+- 2ª Lei — o frio nunca sai mais quente que o quente entrou
 """)
 
     elif pag == 1:
         st.markdown("## 🧪 Fluidos e Vazões")
-        st.markdown("Nesta etapa, você define as 4 propriedades físicas dos fluidos "
-                    "(ρ, μ, cp, k) avaliadas na temperatura média, mais as vazões "
-                    "mássicas.")
+        st.markdown("Nesta etapa você define as 4 propriedades físicas dos fluidos "
+                    "(ρ, μ, cp, k) avaliadas na temperatura média, mais as vazões mássicas.")
         st.markdown("### 📐 Fórmulas")
         st.markdown("**Número de Reynolds:**")
         st.latex(r"Re = \frac{D \cdot G}{\mu} \qquad \text{com } G = \frac{\dot{m}}{A}")
@@ -464,8 +474,7 @@ def render_nesta_etapa(pag):
         st.markdown("### 🧱 Temperatura da parede (iterativo)")
         st.markdown(r"""
 A viscosidade dos líquidos muda perto da parede, distorcendo o perfil de
-velocidade e alterando o coeficiente h. Ignorar isso **superestima h** em
-até 20–30%.
+velocidade e alterando h. Ignorar isso **superestima h** em até 20–30%.
 
 **Algoritmo do programa:**
 1. Chutar $T_w = (T_q + T_f)/2$
@@ -476,9 +485,21 @@ até 20–30%.
 """)
         st.markdown("### 💥 Impacto no projeto")
         st.markdown(r"""
-- Fluidos **mais viscosos** (μ alto) → Re menor → regime laminar → h menor → **mais área** necessária.
+- Fluidos **mais viscosos** (μ alto) → Re menor → regime laminar → h menor → **mais área**.
 - $c_p$ alto no fluido de menor vazão limita quanto ele pode aquecer/resfriar.
-- A viscosidade $\mu$ que você informa é do fluido **bulk** — o programa calcula sozinho a viscosidade **junto à parede**.
+- A viscosidade $\mu$ informada é do fluido **bulk** — o programa calcula sozinho a viscosidade **junto à parede**.
+""")
+        st.markdown("### 📖 Glossário")
+        st.markdown(r"""
+- $\rho$ — massa específica (kg/m³)
+- $\mu$ — viscosidade dinâmica bulk (Pa·s)
+- $\mu_w$ — viscosidade junto à parede (Pa·s)
+- $c_p$ — calor específico a pressão constante (J/kg·K)
+- $k$ — condutividade térmica (W/m·K)
+- $\dot{m}_s, \dot{m}_t$ — vazões mássicas casco/tubos (kg/s)
+- $Re, Pr$ — Reynolds e Prandtl (adimensionais)
+- $h_s, h_t$ — coef. de película casco/tubos (W/m²·K)
+- $\phi$ — fator de correção de viscosidade na parede
 """)
 
     elif pag == 2:
@@ -496,7 +517,7 @@ até 20–30%.
         st.latex(r"F = f(P, R, N_p) \qquad N_p = 1 \Rightarrow F = 1{,}0")
         st.markdown("### 💥 Impacto no projeto")
         st.markdown(r"""
-- Chicanas mais próximas ($L_{bc}$ menor) → mais turbulência → $h$ maior, **mas também** mais $\Delta P$. É sempre um trade-off.
+- Chicanas mais próximas ($L_{bc}$ menor) → mais turbulência → $h$ maior, **mas também** mais $\Delta P$. Trade-off.
 - $D_s$ e $L_{tp}$ definem quantos tubos cabem e a velocidade no casco.
 - $\theta = 30°$ empacota mais tubos que $\theta = 90°$.
 - $N_p > 1$ aumenta velocidade nos tubos (mais $h$) mas reduz $F$.
@@ -511,6 +532,20 @@ até 20–30%.
 | 0,387 | 15¼\" | ~151 |
 | 0,489 | 19¼\" | ~277 |
 | 0,591 | 23¼\" | ~377 |
+""")
+        st.markdown("### 📖 Glossário")
+        st.markdown(r"""
+- $d_o, d_i$ — diâmetros externo e interno do tubo (m)
+- $e$ — espessura da parede do tubo (m)
+- $L_{ta}$ — comprimento do tubo (m)
+- $L_{tp}$ — passo entre tubos, centro-a-centro (m)
+- $D_s$ — diâmetro interno do casco (m)
+- $L_{bc}$ — espaçamento entre chicanas (m)
+- $N_b$ — número de chicanas (calculado)
+- $N_t$ — número de tubos
+- $\theta$ — ângulo do arranjo (°) : 30, 45, 60, 90
+- $N_p$ — número de passes nos tubos
+- $F$ — fator de correção da LMTD (multipasse)
 """)
 
     else:
@@ -535,7 +570,7 @@ até 20–30%.
         st.markdown(r"""
 - Se $\Delta P$ calculado > limite definido, o projeto é **reprovado**.
 - Fouling é a maior fonte de incerteza em projetos reais: quanto maior $R_f$, menor $U$ → maior a área.
-- Trocadores são superdimensionados (excesso de área) para compensar o fouling ao longo da vida útil.
+- Trocadores são superdimensionados (excesso de área) para compensar o fouling.
 """)
         st.markdown("### 📊 Faixas de excesso de área (TEMA)")
         st.markdown(r"""
@@ -544,6 +579,18 @@ até 20–30%.
 - $10$–$25\%$ → ✅ **Ideal**
 - $25$–$35\%$ → ⚠️ Leve superdimensionamento
 - $> 35\%$ → ❌ Superdimensionamento excessivo
+""")
+        st.markdown("### 📖 Glossário")
+        st.markdown(r"""
+- $\Delta P_s, \Delta P_t$ — queda de pressão casco/tubos (kPa)
+- $f_s, f_t$ — fatores de atrito casco/tubos
+- $R_f$ — resistência de fouling (m²·K/W)
+- $R_{\text{foul}}$ — resistência total de fouling já combinada
+- $U$ — coeficiente global de troca (W/m²·K)
+- $A$ — área de troca térmica (m²)
+- $\lambda$ — calor latente de mudança de fase (kJ/kg)
+- $x$ — fração da vazão que muda de fase (0 a 1)
+- TEMA — Tubular Exchanger Manufacturers Association
 """)
 def render_dicas(pag, metodo="kern"):
     """Aba 'Dicas' — guia prático por etapa."""
@@ -834,14 +881,14 @@ def widget_fluido(prefixo, lado):
 # ═════════════════════════════════════════════════════════════════
 def _estimar_geometria(prefixo, metodo):
     try:
-        # Valida se páginas 1 e 2 estão preenchidas
-        ok0, _ = validar_pagina(prefixo, 0)
-        ok1, _ = validar_pagina(prefixo, 1)
+        ok0, falt0 = validar_pagina(prefixo, 0)
+        ok1, falt1 = validar_pagina(prefixo, 1)
         if not ok0:
-            st.error("⚠️ Preencha a **Página 1 (Temperaturas)** antes de estimar.")
+            st.error("⚠️ **Página 1 (Temperaturas)** tem campos vazios: " + ", ".join(falt0))
             return
         if not ok1:
-            st.error("⚠️ Preencha a **Página 2 (Fluidos)** — clique em 🔎 Buscar — antes de estimar.")
+            st.error("⚠️ **Página 2 (Fluidos)** tem campos vazios: " + ", ".join(falt1) +
+                     " — clique em 🔎 Buscar propriedades nos dois bancos.")
             return
 
         Thi = pf(f"{prefixo}_Thi"); Tci = pf(f"{prefixo}_Tci")
@@ -851,8 +898,20 @@ def _estimar_geometria(prefixo, metodo):
         obj_raw = _V(f"{prefixo}_obj", "Th,o")
         obj = "Th,o" if str(obj_raw).startswith("Th,o") else "Tc,o"
 
-        Tho, Tco, Q = resolver_T(obj, Thi, Tci, Tsaida, ms, cp_s, mt, cp_t)
-        lmtd_v = lmtd(Thi, Tho, Tci, Tco)
+        # Validação física antes de calcular
+        if ms <= 0 or mt <= 0:
+            st.error("⚠️ As vazões mássicas ṁₛ e ṁₜ devem ser > 0.")
+            return
+        if cp_s <= 0 or cp_t <= 0:
+            st.error("⚠️ Os calores específicos devem ser > 0.")
+            return
+
+        try:
+            Tho, Tco, Q = resolver_T(obj, Thi, Tci, Tsaida, ms, cp_s, mt, cp_t)
+            lmtd_v = lmtd(Thi, Tho, Tci, Tco)
+        except ValueError as e:
+            st.error(f"⚠️ {e}")
+            return
 
         mu_max = max(pf(f"{prefixo}_mu_s", 1e-3), pf(f"{prefixo}_mu_t", 1e-3))
         U_tip, tipo = (400, "líquido–líquido viscoso") if mu_max > 1e-3 else (900, "líquido–líquido pouco viscoso")
@@ -867,7 +926,6 @@ def _estimar_geometria(prefixo, metodo):
         r = bundle_diameter(Nt, do, Np_v, theta_v)
         Ds = r["Ds"]; Lbc = 0.30 * Ds
 
-        # Aplica em todos os campos (o nonce garante que os widgets atualizam)
         _S(f"{prefixo}_d", f"{do:.5f}")
         _S(f"{prefixo}_e_parede", "0.00165")
         _S(f"{prefixo}_Lta", f"{Lta}")
@@ -888,8 +946,6 @@ def _estimar_geometria(prefixo, metodo):
             f"• d_o = {do:.5f} m\n• Lta = {Lta} m\n• Nt = {Nt}\n"
             f"• Ltp = {Ltp:.5f} m\n• Ds = {Ds:.4f} m\n• Lbc = {Lbc:.3f} m")
         st.rerun()
-    except ValueError as e:
-        st.error(f"⚠️ {e}")
     except Exception as e:
         st.error(f"Erro: {e}")
 
@@ -962,6 +1018,24 @@ def render_aba(prefixo, metodo):
             st.markdown("<div class='card-info'><b>💡 Etapa 2:</b> propriedades dos fluidos. "
                         "Use o banco para preencher automaticamente.</div>",
                         unsafe_allow_html=True)
+                        # ⚠️ AVISO SOBRE T DE REFERÊNCIA
+            with st.expander("⚠️ A T de referência é apenas um CHUTE inicial — leia antes de buscar",
+                             expanded=True):
+                st.markdown(r"""
+            As propriedades (ρ, μ, cp, k) **variam com a temperatura**. Como você ainda
+            não sabe a temperatura média exata do fluido (ela só aparece **depois** que
+            o programa calcula as temperaturas de saída), use uma **estimativa inicial**:
+            em geral, a própria **temperatura de entrada** do fluido.
+            
+            **Fluxo iterativo (converge em 1–2 rodadas):**
+            
+            1. Insira uma T-chute (ex.: a T de entrada do fluido)
+            2. Clique em **🔎 Buscar propriedades**
+            3. Vá para a **página 4** e clique em **▶ CALCULAR**
+            4. Volte para **esta página** e clique em **↺ Usar T média**
+               — o programa preenche com a $T_{\text{média}}$ que ele mesmo calculou
+            5. Recalcule
+            """)
 
             # Casco
             with st.expander("🔵 Banco de Fluidos — Casco (quente)", expanded=True):
