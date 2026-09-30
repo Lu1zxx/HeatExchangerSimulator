@@ -1,6 +1,6 @@
 """
-Simulador Casco-e-Tubo — versão Streamlit com etapas
-Kern & Bell-Delaware | v5 | com Mudança de Fase, Fouling e CoolProp
+Simulador Casco-e-Tubo — Streamlit
+Kern & Bell-Delaware | v5 | CoolProp integrado
 """
 import math
 import streamlit as st
@@ -18,7 +18,7 @@ except ImportError:
     COOLPROP_VERSAO = None
 
 # ═════════════════════════════════════════════════════════════════
-#  CONFIGURAÇÃO DA PÁGINA
+#  CONFIG + CSS  (Correção 1 — estética)
 # ═════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="Simulador — Casco-e-Tubo",
@@ -27,44 +27,119 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ═════════════════════════════════════════════════════════════════
-#  CSS
-# ═════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-.block-container{padding-top:1.2rem;padding-bottom:1rem}
+/* Força tema escuro do Streamlit */
+.stApp { background-color: #0B1520 !important; }
+[data-testid="stSidebar"] { background-color: #111E2D !important; }
+.stApp, .stApp p, .stApp span, .stApp label, .stApp div { color: #DFF0FF; }
 
-.card-info{
-    background:#1a2332;border-left:4px solid #4a9eff;border-radius:6px;
-    padding:12px 16px;margin:8px 0;font-size:13px;line-height:1.6;color:#DFF0FF}
-.card-warn{
-    background:#2d2010;border-left:4px solid #ffaa00;border-radius:6px;
-    padding:12px 16px;margin:8px 0;font-size:13px;line-height:1.6;color:#DFF0FF}
-.card-ok{
-    background:#0d2a1a;border-left:4px solid #28a745;border-radius:6px;
-    padding:12px 16px;margin:8px 0;font-size:13px;line-height:1.6;color:#DFF0FF}
-.card-erro{
-    background:#2d1010;border-left:4px solid #FF4D6D;border-radius:6px;
-    padding:12px 16px;margin:8px 0;font-size:13px;line-height:1.6;color:#DFF0FF}
+/* Cartões do Streamlit */
+[data-testid="stExpander"] {
+    background-color: #172435; border: 1px solid #1F4068 !important;
+    border-radius: 8px;
+}
+[data-testid="stExpander"] summary { color: #00C2FF !important; font-weight: 600; }
 
-.result-box{
-    background:#0e1117;border:1px solid #21262d;border-radius:8px;
-    padding:16px;font-family:'Courier New',monospace;font-size:12px;
-    white-space:pre-wrap;line-height:1.55;color:#58d68d;overflow-x:auto}
+/* Inputs */
+.stTextInput input, .stNumberInput input, .stSelectbox select {
+    background-color: #1E3048 !important;
+    color: #DFF0FF !important;
+    border: 1px solid #1F4068 !important;
+    border-radius: 6px !important;
+}
+.stTextInput label, .stSelectbox label, .stRadio label {
+    color: #8FB0CF !important; font-size: 13px !important;
+}
 
-.nesta-etapa{
-    background:#0e1117;border:1px solid #21262d;border-radius:8px;
-    padding:16px;font-family:'Courier New',monospace;font-size:12px;
-    white-space:pre-wrap;line-height:1.55;color:#c084fc;overflow-x:auto}
+/* Botões */
+.stButton > button {
+    background-color: #1F4068 !important;
+    color: #DFF0FF !important;
+    border: 1px solid #00C2FF !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    padding: 8px 16px !important;
+}
+.stButton > button:hover {
+    background-color: #00C2FF !important;
+    color: #0B1520 !important;
+}
+.stButton > button[kind="primary"] {
+    background-color: #00C2FF !important;
+    color: #0B1520 !important;
+}
 
-.stage-box{
-    background:#172435;border:1px solid #00C2FF;border-radius:8px;
-    padding:12px 16px;margin:8px 0;color:#DFF0FF;font-family:'Courier New',monospace;font-size:13px}
+/* Abas */
+.stTabs [data-baseweb="tab-list"] { gap: 6px; background: transparent; }
+.stTabs [data-baseweb="tab"] {
+    background-color: #172435; color: #6A90B0;
+    border-radius: 6px 6px 0 0; padding: 8px 18px; font-weight: 600;
+}
+.stTabs [aria-selected="true"] {
+    background-color: #00C2FF !important; color: #0B1520 !important;
+}
 
-h1,h2,h3{color:#DFF0FF!important}
-.stTabs [data-baseweb="tab"]{background-color:#172435;border-radius:4px}
-.stTabs [aria-selected="true"]{background-color:#00C2FF!important;color:#0B1520!important}
-input[type=text]{font-size:14px!important}
+/* Títulos */
+h1, h2, h3 { color: #DFF0FF !important; }
+
+/* Cabeçalho de navegação da etapa */
+.stage-nav {
+    background: #111E2D; border: 1px solid #1F4068;
+    border-radius: 8px; padding: 12px 18px; margin-bottom: 12px;
+}
+.stage-nav .title {
+    color: #00C2FF; font-family: 'Courier New', monospace;
+    font-weight: 700; font-size: 14px; letter-spacing: 0.5px;
+}
+.stage-nav .progress {
+    color: #8FB0CF; font-size: 12px; margin-top: 4px;
+}
+
+/* Aviso de validação */
+.val-box {
+    background: #2B1D0E; border: 2px solid #FFD166; border-radius: 8px;
+    padding: 14px 18px; margin: 12px 0;
+}
+.val-box .h {
+    color: #FFD166; font-weight: 700; font-size: 15px; margin-bottom: 8px;
+}
+.val-box ul { margin: 6px 0 0 20px; padding: 0; }
+.val-box li { color: #FFE9A8; margin: 4px 0; font-size: 13px; }
+
+/* Cards de destaque */
+.card-info {
+    background: #0F2438; border-left: 4px solid #00C2FF;
+    border-radius: 6px; padding: 14px 18px; margin: 10px 0;
+    color: #C8E4FF; font-size: 13px; line-height: 1.7;
+}
+.card-warn {
+    background: #2B1D0E; border-left: 4px solid #FFD166;
+    border-radius: 6px; padding: 14px 18px; margin: 10px 0;
+    color: #FFE9A8; font-size: 13px; line-height: 1.7;
+}
+.card-ok {
+    background: #0D2A1A; border-left: 4px solid #00E5A0;
+    border-radius: 6px; padding: 14px 18px; margin: 10px 0;
+    color: #A8FFD7; font-size: 13px; line-height: 1.7;
+}
+.card-title { font-weight: 700; color: #00C2FF; margin-bottom: 6px; }
+
+/* Output */
+.result-box {
+    background: #0A1018; border: 1px solid #1F4068;
+    border-radius: 8px; padding: 18px;
+    font-family: 'Courier New', monospace; font-size: 12.5px;
+    white-space: pre-wrap; line-height: 1.6; color: #00E5A0;
+    max-height: 700px; overflow-y: auto;
+}
+.nesta-box {
+    background: #0A1018; border: 1px solid #C084FC;
+    border-radius: 8px; padding: 20px;
+    font-family: 'Courier New', monospace; font-size: 12.5px;
+    white-space: pre-wrap; line-height: 1.7; color: #D6B8FF;
+    max-height: 700px; overflow-y: auto;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +181,7 @@ FLUIDOS_DB = {
         "cp":  lambda T: 4217.4 - 3.72*T + 0.1412*T**2 - 0.00191*T**3 + 9.6e-6*T**4,
         "k":   lambda T: 0.5636 + 0.001946*T - 8.151e-6*T**2,
         "faixa": (0, 200),
-        "fonte": "Incropera et al. (2007), Tabela A.6",
+        "fonte": "Incropera et al. (2007), Tab. A.6",
     },
     "Ar (1 atm)": {
         "rho": lambda T: 353.05 / (T + 273.15),
@@ -114,7 +189,7 @@ FLUIDOS_DB = {
         "cp":  lambda T: 1006.0 + 0.0448*T + 1.6e-4*T**2,
         "k":   lambda T: 0.0241 + 7.5e-5*T - 1.0e-8*T**2,
         "faixa": (-20, 400),
-        "fonte": "Incropera et al. (2007), Tabela A.4",
+        "fonte": "Incropera et al. (2007), Tab. A.4",
     },
 }
 
@@ -133,8 +208,7 @@ FLUIDOS_COOLPROP = {
     "R507A":"R507A","R32":"R32","R152a":"R152A","R1234yf":"R1234yf",
     "R1234ze(E)":"R1234ze(E)","R245fa":"R245fa","R125":"R125",
     "R143a":"R143a","R227ea":"R227EA",
-    "R22 (legado)":"R22","R11 (legado, banido)":"R11","R12 (legado, banido)":"R12",
-    "R123 (legado)":"R123",
+    "R22 (legado)":"R22","R11 (legado)":"R11","R12 (legado)":"R12","R123 (legado)":"R123",
 }
 
 TAB10 = {
@@ -162,7 +236,7 @@ K1N = {
 }
 
 # ═════════════════════════════════════════════════════════════════
-#  HELPERS
+#  HELPERS DE CÁLCULO
 # ═════════════════════════════════════════════════════════════════
 def _lookup(tab, theta, Re):
     ent = tab[theta]
@@ -240,11 +314,11 @@ def coef_global(hs,ht,d,di,kp,Q,dTlm,Rfe=0,Rfi=0,F=1):
 def resolver_T(obj,Thi,Tci,Tval,ms,cps,mt,cpt,Q_lat_s=0,Q_lat_t=0):
     if "Th,o" in obj:
         Tho=Tval; Q=ms*cps*(Thi-Tho)+Q_lat_s
-        if Q<=0: raise ValueError("Q≤0: Th,o deve ser menor que Th,i")
+        if Q<=0: raise ValueError("Q≤0 → Th,o deve ser menor que Th,i")
         Tco=Tci+(Q-Q_lat_t)/(mt*cpt)
     else:
         Tco=Tval; Q=mt*cpt*(Tco-Tci)+Q_lat_t
-        if Q<=0: raise ValueError("Q≤0: Tc,o deve ser maior que Tc,i")
+        if Q<=0: raise ValueError("Q≤0 → Tc,o deve ser maior que Tc,i")
         Tho=Thi-(Q-Q_lat_s)/(ms*cps)
     return Tho,Tco,Q
 
@@ -357,13 +431,9 @@ def bd_dPs(ms,rho_s,mu_s,mws,d,Ltp,theta,geo,fat):
     dPw=dPwi*Nb*fat["Rl"] if Nb>0 else 0
     return{"fs":fs,"dPc":dPc,"dPw":dPw,"dPe":dPe,"dPs":dPc+dPw+dPe}
 
-# ═════════════════════════════════════════════════════════════════
-#  PROPRIEDADES DE FLUIDO (CoolProp + manual)
-# ═════════════════════════════════════════════════════════════════
 def propriedades_fluido(nome, T_C, P_Pa=101325.0):
     if nome in FLUIDOS_DB:
-        f = FLUIDOS_DB[nome]
-        Tmin, Tmax = f["faixa"]
+        f = FLUIDOS_DB[nome]; Tmin, Tmax = f["faixa"]
         fora = not (Tmin <= T_C <= Tmax)
         return {"rho":f["rho"](T_C),"mu":f["mu"](T_C),
                 "cp":f["cp"](T_C),"k":f["k"](T_C),
@@ -379,78 +449,149 @@ def propriedades_fluido(nome, T_C, P_Pa=101325.0):
             cp  = _CP.PropsSI("C","T",T_K,"P",P_Pa,fid)
             k   = _CP.PropsSI("L","T",T_K,"P",P_Pa,fid)
         except Exception as e:
-            raise RuntimeError(f"CoolProp falhou em {nome} a {T_C:.1f}°C, {P_Pa/1000:.1f}kPa: {str(e)[:150]}")
+            raise RuntimeError(f"CoolProp falhou: {str(e)[:150]}")
         try: fase_b = _CP.PhaseSI("T",T_K,"P",P_Pa,fid)
         except: fase_b = "unknown"
         fase_pt = {"liquid":"líquido","gas":"gás","twophase":"bifásico",
-                   "supercritical":"supercrítico","supercritical_liquid":"supercrítico (líq.)",
-                   "supercritical_gas":"supercrítico (gás)","unknown":"indefinida"}.get(fase_b,fase_b)
+                   "supercritical":"supercrítico","unknown":"indefinida"}.get(fase_b,fase_b)
         fora = not (Tmin_K <= T_K <= Tmax_K)
         return {"rho":rho,"mu":mu,"cp":cp,"k":k,"fora_faixa":fora,
                 "faixa":(Tmin_K-273.15,Tmax_K-273.15),"fase":fase_pt,
-                "fonte":f"CoolProp {COOLPROP_VERSAO or ''} — a {P_Pa/1000:.1f} kPa"}
+                "fonte":f"CoolProp {COOLPROP_VERSAO or ''}"}
     raise KeyError(nome)
 
 # ═════════════════════════════════════════════════════════════════
-#  TEXTOS "NESTA ETAPA" (por página)
+#  PERSISTÊNCIA DE VALORES (Correção 5 — valores somem ao voltar)
 # ═════════════════════════════════════════════════════════════════
-def explic_etapa(idx, metodo="kern"):
-    textos = [
-    # ── Página 1: Temperaturas ──
+if "_vals" not in st.session_state:
+    st.session_state["_vals"] = {}
+
+def _V(key, default=""):
+    """Lê valor persistente."""
+    return st.session_state["_vals"].get(key, default)
+
+def _S(key, val):
+    """Grava valor persistente."""
+    st.session_state["_vals"][key] = val
+
+def ptext(label, key, default="", help=None, disabled=False):
+    """Text input persistente entre páginas."""
+    widget_key = f"_w_{key}"
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = _V(key, default)
+    v = st.text_input(label, key=widget_key, help=help, disabled=disabled)
+    _S(key, v)
+    return v
+
+def pselect(label, key, options, default=None, help=None):
+    """Selectbox persistente."""
+    widget_key = f"_w_{key}"
+    if widget_key not in st.session_state:
+        if default is None: default = options[0]
+        st.session_state[widget_key] = _V(key, default)
+    # Garante que o valor esteja nas opções
+    if st.session_state[widget_key] not in options:
+        st.session_state[widget_key] = options[0]
+    v = st.selectbox(label, options, key=widget_key, help=help)
+    _S(key, v)
+    return v
+
+def pradio(label, key, options, default=None, horizontal=True, help=None):
+    """Radio persistente."""
+    widget_key = f"_w_{key}"
+    if widget_key not in st.session_state:
+        if default is None: default = options[0]
+        st.session_state[widget_key] = _V(key, default)
+    if st.session_state[widget_key] not in options:
+        st.session_state[widget_key] = options[0]
+    v = st.radio(label, options, key=widget_key, horizontal=horizontal, help=help)
+    _S(key, v)
+    return v
+
+def pf(key, default=0.0):
+    """Parse float do valor persistente."""
+    try:
+        return float(str(_V(key, "")).replace(",", ".").strip())
+    except:
+        return default
+
+def pi(key, default=0):
+    """Parse int do valor persistente."""
+    try:
+        return int(float(str(_V(key, "")).replace(",", ".").strip()))
+    except:
+        return default
+
+# ═════════════════════════════════════════════════════════════════
+#  TEXTO "NESTA ETAPA" (Correção 6 — equações legíveis)
+# ═════════════════════════════════════════════════════════════════
+NESTA_ETAPA = [
 """┌─ 🌡️  TEMPERATURAS E OBJETIVO ────────────────────────┐
 
 FÓRMULAS DESTA ETAPA
 ─────────────────────
-  Balanço de energia (1ª Lei):
-    Q = ṁ · cp · ΔT        (para cada lado)
-    Q_quente = Q_frio        (o que falta é calculado daqui)
+  ▸ Balanço de energia (1ª Lei da Termodinâmica):
 
-  Diferença de temperatura média (LMTD):
-    LMTD = (ΔT1 − ΔT2) / ln(ΔT1/ΔT2)
-    ΔT1 = Th,i − Tc,o     ΔT2 = Th,o − Tc,i
+        Q = ṁ · cp · ΔT          (para cada lado)
+
+  ▸ Igualdade dos calores trocados:
+
+        Q_quente = Q_frio
+
+  ▸ Diferença de temperatura média logarítmica (LMTD):
+
+        ΔT₁ − ΔT₂
+        ─────────────────────  onde  ΔT₁ = Th,i − Tc,o
+          ln(ΔT₁ / ΔT₂)                ΔT₂ = Th,o − Tc,i
 
 IMPACTO NO PROJETO
 ───────────────────
   • Essas temperaturas definem o Q TOTAL do trocador.
-  • Quanto MENOR o ΔT entre os fluidos, MENOR a força
-    motriz térmica → para o mesmo Q, mais área de troca.
-  • Se a T de saída pedida violar a 2ª Lei, o programa
-    avisa antes de você preencher o resto.
+  • Quanto MENOR o ΔT entre os fluidos, MENOR a força motriz
+    térmica → para o mesmo Q, exige MAIS área de troca.
+  • Se a T de saída pedida violar a 2ª Lei, o programa avisa.
 
 GLOSSÁRIO
 ─────────
   Th,i / Th,o  T entrada / saída do fluido QUENTE (°C)
-  Tc,i / Tc,o  T entrada / saída do fluido FRIO (°C)
+  Tc,i / Tc,o  T entrada / saída do fluido FRIO   (°C)
   Q            Taxa de calor trocado (W)
   ṁ            Vazão mássica (kg/s)
   cp           Calor específico (J/kg·K)
+  ΔT           Diferença de temperatura (°C)
 """,
-    # ── Página 2: Fluidos ──
 """┌─ 🧪  FLUIDOS E VAZÕES ────────────────────────────────┐
 
 FÓRMULAS DESTA ETAPA
 ─────────────────────
-  Número de Reynolds (regime de escoamento):
-    Re = D · G / μ        (G = velocidade mássica = ṁ/A)
+  ▸ Número de Reynolds (regime de escoamento):
 
-  Número de Prandtl (relação difusão qtd.mov./calor):
-    Pr = μ · cp / k
+        Re = D · G / μ        com  G = ṁ / A
 
-  Essas propriedades entram nas correlações de convecção:
-    hs = (0,36·k/Dhs) · Re^0,55 · Pr^(1/3)   [casco, Kern]
-    Nu = f(Re, Pr)  →  h = Nu·k/di            [tubos]
+  ▸ Número de Prandtl (difusão qtd.mov. / difusão calor):
 
-  Correção de viscosidade na parede:
-    φ = (μ_bulk / μ_parede)^0,14
-    h_real = h_ideal × φ
+        Pr = μ · cp / k
+
+  ▸ Correção de viscosidade na parede:
+
+        φ = (μ_bulk / μ_w)^0,14
+        h_real = h_ideal × φ
+
+COMO O PROGRAMA USA
+───────────────────
+  ▸ No casco (Kern):
+
+        hs = (0,36 · k / Dhs) · Re^0,55 · Pr^(1/3)
+
+  ▸ Nos tubos (Sieder-Tate / Gnielinski):
+
+        Nu = f(Re, Pr)    →    h = Nu · k / di
 
 IMPACTO NO PROJETO
 ───────────────────
   • Fluidos MAIS VISCOSOS → Re menor → h menor → mais área.
-  • Use o BANCO DE DADOS DE FLUIDOS para preencher os campos.
-    Escolha "Água (líquida)" ou "Ar (1 atm)" para teste rápido.
-  • Para CoolProp, informe também a PRESSÃO de referência.
-  • Após calcular, use ↺ "Usar T média" para refinar.
+  • Use o BANCO DE DADOS para preencher ρ, μ, cp, k automaticamente.
+  • Após calcular, clique em ↺ para refinar com a T média real.
 
 GLOSSÁRIO
 ─────────
@@ -459,440 +600,566 @@ GLOSSÁRIO
   cp        Calor específico (J/kg·K)
   k         Condutividade térmica (W/m·K)
   ṁₛ / ṁₜ   Vazão mássica casco / tubo (kg/s)
+  Re / Pr   Adimensionais (Reynolds / Prandtl)
 """,
-    # ── Página 3: Geometria ──
 """┌─ 📐  GEOMETRIA DO TROCADOR ───────────────────────────┐
 
 FÓRMULAS DESTA ETAPA
 ─────────────────────
-  Diâmetro interno do tubo:
-    di = d_o − 2·e
+  ▸ Diâmetro interno do tubo:
 
-  Nº de chicanas:
-    Nb = ⌊Lta / Lbc⌋ − 1
+        di = d_o − 2·e
 
-  Dependem do arranjo θ:
-    Dhs = f(Ltp, d, θ)      Atc = Ds·C·Lbc/Ltp
+  ▸ Número de chicanas:
 
-  Fator de correção da LMTD (multipasse):
-    F = f(P, R, Nₚ)   [Bowman-Mueller-Nagle]
-    Nₚ = 1 → F = 1,0
+        Nb = ⌊Lta / Lbc⌋ − 1
+
+  ▸ Fator de correção da LMTD (multipasse, Bowman-Mueller):
+
+        F = f(P, R, Nₚ)     →     Nₚ = 1  ⇒  F = 1,0
 
 IMPACTO NO PROJETO
 ───────────────────
   • A geometria define a ÁREA DISPONÍVEL:
-    A_inst = Nt · π · d_o · Lta
+
+        A_inst = Nt · π · d_o · Lta
+
   • Use 🔮 "Estimar geometria" para derivar tudo a partir de Q.
   • Chicanas mais próximas (Lbc↓) → mais h, mas mais ΔP.
-  • θ = 30° (triangular) empacota mais tubos que θ = 90°.
+  • θ = 30° empacota mais tubos que θ = 90°.
 
-TABELA DE REFERÊNCIA — Nₜ × Dₛ (aprox.)
-    Dₛ (m)   Dₛ (pol.)   Nₜ aprox.
-    0,203       8"          ~37
-    0,254      10"          ~62
-    0,305      12"          ~92
-    0,387      15¼"        ~151
-    0,489      19¼"        ~277
+TABELA DE REFERÊNCIA — Nₜ × Dₛ (aprox., tubo 3/4")
+    Dₛ (m)     Dₛ (pol.)     Nₜ aprox.
+    ───────    ──────────    ──────────
+     0,203        8"             ~37
+     0,254       10"             ~62
+     0,305       12"             ~92
+     0,387      15¼"            ~151
+     0,489      19¼"            ~277
+     0,591      23¼"            ~377
 
 GLOSSÁRIO
 ─────────
-  d_o / di   Diâmetro externo / interno (m)
+  d_o / di   Diâmetro externo / interno do tubo (m)
   e          Espessura da parede (m)
-  Lta        Comprimento do tubo (m)
-  Ltp        Passo entre tubos (m)
-  Ds         Diâmetro do casco (m)
-  Lbc        Espaçamento entre chicanas (m)
-  θ          Ângulo do arranjo (°)
-  Nₚ         Nº de passes nos tubos
+  Lta / Ltp  Comprimento do tubo / Passo entre tubos (m)
+  Ds / Lbc   Diâmetro do casco / Espaç. chicanas (m)
+  θ / Nₚ     Ângulo do arranjo (°) / Nº de passes
 """,
-    # ── Página 4: Cálculo ──
 """┌─ ⚙️  LIMITES, FASE, FOULING E CÁLCULO ────────────────┐
 
 FÓRMULAS DESTA ETAPA
 ─────────────────────
-  Queda de pressão (Kern):
-    ΔPs = fs·Gs²·(Nb+1)·Ds / (2·ρₛ·Dhs·φₛ)
-    ΔPt = ft·(Lta/di)·(Gt²/2ρₜ)·Np + retornos
+  ▸ Queda de pressão (casco, Kern):
 
-  Fouling (incrustação):
-    R_foul = Rf,ext + (d/di)·Rf,int
+        ΔPs = fs · Gs² · (Nb+1) · Ds / (2 · ρₛ · Dhs · φₛ)
 
-  Coeficiente global e área:
-    U = 1 / (R_ext + R_cond + R_int + R_foul)
-    A = Q / (U · LMTD · F)
+  ▸ Queda de pressão (tubos):
+
+        ΔPt = ft · (Lta/di) · (Gt²/2ρₜ) · Np + retornos
+
+  ▸ Resistência de fouling:
+
+        R_foul = Rf,ext + (d_o / di) · Rf,int
+
+  ▸ Coeficiente global e área:
+
+        U = 1 / (R_ext + R_cond + R_int + R_foul)
+
+        A = Q / (U · LMTD · F)
 
 IMPACTO NO PROJETO
 ───────────────────
-  • ΔP calculado > limite → projeto REPROVADO.
-  • Mudança de fase: Q_total = Q_sens + ṁ·λ·x.
-  • Fouling MAIOR → U MENOR → área MAIOR.
-  • Excesso de área ideal: 10–25 %.
+  • ΔP calculado > limite definido → projeto REPROVADO.
+  • Mudança de fase adiciona calor latente:
+
+        Q_total = Q_sensível + ṁ · λ · x
+
+  • Fouling maior → U menor → área maior.
+  • Excesso de área ideal: entre 10 % e 25 %.
 
 GLOSSÁRIO
 ─────────
-  ΔPs / ΔPt   Queda de pressão casco / tubos
+  ΔPs / ΔPt   Queda de pressão casco / tubos (kPa)
   Rf          Resistência de fouling (m²·K/W)
-  U           Coef. global (W/m²·K)
-  A           Área de troca (m²)
-  λ           Calor latente (kJ/kg)
+  U / A       Coef. global (W/m²·K) / Área de troca (m²)
+  λ / x       Calor latente (kJ/kg) / Fração que muda de fase
 """,
-    ]
-    idx = max(0, min(idx, len(textos)-1))
-    return textos[idx]
+]
 
 # ═════════════════════════════════════════════════════════════════
-#  SESSION STATE INIT
+#  WIDGET DE BANCO DE FLUIDOS (Correção 4 — funciona para casco e tubo)
 # ═════════════════════════════════════════════════════════════════
-def _init_state(prefixo):
-    for k in [
-        f"{prefixo}_pagina",
-        f"{prefixo}_resultado",
-        f"{prefixo}_memorial",
-    ]:
-        if k not in st.session_state:
-            st.session_state[k] = 0 if k.endswith("pagina") else None
+def widget_fluido(prefixo, lado, cor):
+    """lado = 's' (casco) ou 't' (tubos)"""
+    nome_lado = "Casco (quente)" if lado == "s" else "Tubos (frio)"
+    emoji = "🔵" if lado == "s" else "🟠"
+
+    st.markdown(f"**{emoji} Banco de Fluidos — {nome_lado}**")
+
+    nomes = list(FLUIDOS_DB.keys())
+    if COOLPROP_DISPONIVEL:
+        nomes += sorted(FLUIDOS_COOLPROP.keys())
+
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        fluido = pselect("Fluido:", f"{prefixo}_fluido_{lado}", nomes)
+    with c2:
+        if COOLPROP_DISPONIVEL:
+            st.markdown(
+                f"<div style='color:#00E5A0;font-size:11px;padding-top:28px;'>"
+                f"🧬 CoolProp {COOLPROP_VERSAO}</div>",
+                unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns([2, 2, 1])
+    with c1:
+        T_ref = ptext("T ref. (°C):", f"{prefixo}_Tref_{lado}")
+    with c2:
+        P_ref = ptext("P ref. (kPa):", f"{prefixo}_Pref_{lado}", "101.325")
+    with c3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        btn_sug = st.button("💡 P", key=f"{prefixo}_sug_{lado}", help="Sugerir P de saturação")
+
+    # Feedback
+    fb_key = f"{prefixo}_fb_{lado}"
+    if fb_key in st.session_state:
+        st.markdown(st.session_state[fb_key], unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button(f"🔎 Buscar propriedades", key=f"{prefixo}_buscar_{lado}",
+                     use_container_width=True):
+            try:
+                T = pf(f"{prefixo}_Tref_{lado}")
+                P_kPa = pf(f"{prefixo}_Pref_{lado}", 101.325)
+                p = propriedades_fluido(fluido, T, P_Pa=P_kPa*1000.0)
+                _S(f"{prefixo}_rho_{lado}", f"{p['rho']:.4f}")
+                _S(f"{prefixo}_mu_{lado}",  f"{p['mu']:.6e}")
+                _S(f"{prefixo}_cp_{lado}",  f"{p['cp']:.2f}")
+                _S(f"{prefixo}_k_{lado}",   f"{p['k']:.5f}")
+                aviso = "⚠️ fora da faixa!" if p["fora_faixa"] else "✔ dentro da faixa"
+                fase = f" | fase: {p['fase']}" if p.get('fase') else ""
+                st.session_state[fb_key] = (
+                    f"<div class='card-ok'>"
+                    f"✔ Preenchido: ρ={p['rho']:.2f} kg/m³ · μ={p['mu']:.3e} Pa·s · "
+                    f"cp={p['cp']:.1f} J/kg·K · k={p['k']:.4f} W/m·K<br>"
+                    f"<small>Faixa: {p['faixa'][0]:.1f} a {p['faixa'][1]:.1f} °C — {aviso}{fase} | {p['fonte']}</small>"
+                    f"</div>")
+                st.rerun()
+            except Exception as e:
+                st.session_state[fb_key] = f"<div class='card-warn'>⚠️ {e}</div>"
+                st.rerun()
+    with c2:
+        if st.button("↺ Usar T média (bulk)", key=f"{prefixo}_bulk_{lado}",
+                     use_container_width=True, help="Após calcular"):
+            T_bulk = st.session_state.get(f"{prefixo}_Tbulk_{lado}")
+            if T_bulk is None:
+                st.session_state[fb_key] = "<div class='card-warn'>⚠️ Faça um cálculo primeiro.</div>"
+                st.rerun()
+            else:
+                _S(f"{prefixo}_Tref_{lado}", f"{T_bulk:.2f}")
+                st.rerun()
+
+    # Sugerir P
+    if btn_sug:
+        if fluido not in FLUIDOS_COOLPROP or not COOLPROP_DISPONIVEL:
+            st.session_state[fb_key] = "<div class='card-warn'>💡 Sugestão de P só para fluidos CoolProp.</div>"
+        else:
+            try:
+                T = pf(f"{prefixo}_Tref_{lado}")
+                fid = FLUIDOS_COOLPROP[fluido]
+                T_K = T + 273.15
+                T_sat_K = _CP.PropsSI("T","P",101325.0,"Q",0,fid)
+                P_sat_Pa = _CP.PropsSI("P","T",T_K,"Q",0,fid)
+                P_sat_kPa = P_sat_Pa/1000
+                st.session_state[fb_key] = (
+                    f"<div class='card-info'>"
+                    f"<b>💡 Sugestão de Pressão</b><br>"
+                    f"T_sat @ 1 atm = {T_sat_K-273.15:.1f} °C<br>"
+                    f"P_sat em {T:.1f} °C = <b>{P_sat_kPa:.2f} kPa</b><br>"
+                    f"▸ Líquido: P > {P_sat_kPa:.1f} kPa (sugestão {P_sat_kPa*1.2:.0f})<br>"
+                    f"▸ Vapor:   P < {P_sat_kPa:.1f} kPa (sugestão {P_sat_kPa*0.5:.0f})"
+                    f"</div>")
+            except Exception as e:
+                st.session_state[fb_key] = f"<div class='card-warn'>⚠️ Sem saturação nesta T.</div>"
+        st.rerun()
 
 # ═════════════════════════════════════════════════════════════════
 #  CABEÇALHO
 # ═════════════════════════════════════════════════════════════════
 st.title("⚙️ Simulador Casco-e-Tubo")
-st.caption("**Kern** & **Bell-Delaware** | v5 | com Mudança de Fase, Fouling e CoolProp")
+st.caption("**Kern** & **Bell-Delaware**  ·  v5  ·  com Mudança de Fase, Fouling e CoolProp")
 
-# ═════════════════════════════════════════════════════════════════
-#  ABAS DOS MÉTODOS
-# ═════════════════════════════════════════════════════════════════
 tab_k, tab_b = st.tabs(["🔵 KERN", "🟠 BELL-DELAWARE"])
 
 # ═════════════════════════════════════════════════════════════════
-#  FUNÇÃO GENÉRICA: RENDERIZA UMA ABA
+#  VALIDAÇÃO POR PÁGINA
+# ═════════════════════════════════════════════════════════════════
+def validar_pagina(prefixo, pag):
+    obrig = {
+        0: [("Thi","Th,i — T entrada quente"),
+            ("Tci","Tc,i — T entrada frio"),
+            ("Tsaida","T de saída")],
+        1: [("rho_s","ρₛ — massa específica casco"),
+            ("mu_s","μₛ — viscosidade casco"),
+            ("cp_s","cp,s — calor esp. casco"),
+            ("k_s","kₛ — condutividade casco"),
+            ("ms","ṁₛ — vazão casco"),
+            ("rho_t","ρₜ — massa específica tubos"),
+            ("mu_t","μₜ — viscosidade tubos"),
+            ("cp_t","cp,t — calor esp. tubos"),
+            ("k_t","kₜ — condutividade tubos"),
+            ("mt","ṁₜ — vazão tubos")],
+        2: [("d","d_o — diâm. externo tubo"),
+            ("e_parede","e — espessura parede"),
+            ("Ds","Dₛ — diâmetro casco"),
+            ("Lta","Lₜₐ — comprimento tubo"),
+            ("Ltp","Lₜₚ — passo tubos"),
+            ("Lbc","Lbc — espaç. chicanas"),
+            ("Nt","Nₜ — número de tubos")],
+        3: [],
+    }
+    faltando = []
+    for k, nome in obrig.get(pag, []):
+        v = _V(f"{prefixo}_{k}", "")
+        if not str(v).strip():
+            faltando.append(nome)
+    return (len(faltando)==0, faltando)
+
+# ═════════════════════════════════════════════════════════════════
+#  RENDER DE UMA ABA
 # ═════════════════════════════════════════════════════════════════
 def render_aba(prefixo, cor, metodo):
-    _init_state(prefixo)
-    pag = st.session_state[f"{prefixo}_pagina"]
-    titulos = ["🌡️ Temperaturas e Objetivo",
-               "🧪 Fluidos e Vazões",
-               "📐 Geometria do Trocador",
-               "⚙️ Limites, Fase, Fouling e Cálculo"]
+    pag_key = f"{prefixo}_pagina"
+    if pag_key not in st.session_state:
+        st.session_state[pag_key] = 0
+    pag = st.session_state[pag_key]
+    titulos = ["🌡️ Temperaturas e Objetivo", "🧪 Fluidos e Vazões",
+               "📐 Geometria do Trocador", "⚙️ Limites, Fase e Cálculo"]
 
     col_l, col_r = st.columns([1, 1], gap="large")
 
-    # ═════════════════════════════════════════════════════════════
-    #  COLUNA ESQUERDA — PÁGINAS
-    # ═════════════════════════════════════════════════════════════
+    # ══════════ COLUNA ESQUERDA ══════════
     with col_l:
-        # Navegador
+        # Barra de navegação (Correção 2 — formato limpo)
         st.markdown(
-            f"<div class='stage-box'>"
-            f"🎓 <b>MODO PASSO A PASSO</b><br>"
-            f"Página {pag+1} de 4 — {titulos[pag]}"
+            f"<div class='stage-nav'>"
+            f"<div class='title'>🎓 MODO PASSO A PASSO</div>"
+            f"<div class='progress'>Página <b>{pag+1}</b> de 4 — {titulos[pag]}</div>"
             f"</div>", unsafe_allow_html=True)
-        nav1, nav2, nav3 = st.columns([1, 2, 1])
+
+        nav1, nav2, nav3 = st.columns([1, 1, 1])
         with nav1:
             if st.button("◀ Anterior", disabled=(pag==0), key=f"{prefixo}_ant",
                          use_container_width=True):
-                st.session_state[f"{prefixo}_pagina"] = pag - 1
+                st.session_state[pag_key] = pag - 1
                 st.rerun()
+        with nav2:
+            # indicador vazio
+            st.markdown(f"<div style='text-align:center;color:#6A90B0;padding-top:8px;'>"
+                        f"{pag+1}/4</div>", unsafe_allow_html=True)
         with nav3:
             if st.button("Próximo ▶", disabled=(pag==3), key=f"{prefixo}_prox",
                          use_container_width=True):
-                # valida antes de avançar
                 ok, faltando = validar_pagina(prefixo, pag)
                 if ok:
-                    st.session_state[f"{prefixo}_pagina"] = pag + 1
+                    st.session_state[pag_key] = pag + 1
                     st.rerun()
                 else:
-                    msg = "**Preencha os campos desta etapa antes de avançar:**\n\n"
-                    for c in faltando: msg += f"- {c}\n"
-                    st.warning(msg)
+                    # Correção 2 — mensagem de validação limpa
+                    items = "".join(f"<li>{c}</li>" for c in faltando)
+                    st.markdown(
+                        f"<div class='val-box'>"
+                        f"<div class='h'>⚠️ Preencha os campos desta etapa</div>"
+                        f"<div>Para avançar, preencha todos os campos obrigatórios:</div>"
+                        f"<ul>{items}</ul>"
+                        f"</div>", unsafe_allow_html=True)
 
         st.markdown("---")
 
-        # ─── PÁGINA 1: Temperaturas ──────────────────────────────
+        # ─── PÁGINA 1 ───
         if pag == 0:
             st.markdown(
-                "<div class='card-info'>💡 Defina as temperaturas de entrada dos "
-                "dois fluidos e escolha qual temperatura de saída o programa "
-                "deve calcular. Isso é o balanço de energia: "
-                "<b>Q = ṁ · cp · ΔT</b> (1ª Lei da Termodinâmica).</div>",
-                unsafe_allow_html=True)
+                "<div class='card-info'>"
+                "<b>💡 Objetivo desta etapa:</b> definir as temperaturas de entrada "
+                "e escolher qual temperatura de saída o programa deve calcular."
+                "</div>", unsafe_allow_html=True)
 
             st.subheader("🌡️ Temperaturas do Processo")
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("Th,i — quente entrada (°C) ✱",
-                              key=f"{prefixo}_Thi", placeholder="ex: 100")
+                ptext("Th,i — quente entrada (°C) ✱", f"{prefixo}_Thi")
             with c2:
-                st.text_input("Tc,i — frio entrada (°C) ✱",
-                              key=f"{prefixo}_Tci", placeholder="ex: 20")
+                ptext("Tc,i — frio entrada (°C) ✱", f"{prefixo}_Tci")
 
             st.markdown("**Objetivo:** qual temperatura de saída calcular?")
-            st.radio("Objetivo",
-                     ["Th,o → calcula Tc,o", "Tc,o → calcula Th,o"],
-                     key=f"{prefixo}_obj", horizontal=True)
-
-            if st.session_state[f"{prefixo}_obj"] == "Th,o → calcula Tc,o":
-                st.text_input("Th,o — quente saída (°C) ✱",
-                              key=f"{prefixo}_Tsaida", placeholder="ex: 60")
+            obj = pradio("Objetivo",
+                         f"{prefixo}_obj",
+                         ["Th,o → calcula Tc,o", "Tc,o → calcula Th,o"],
+                         horizontal=True)
+            if obj.startswith("Th,o"):
+                ptext("Th,o — quente saída (°C) ✱", f"{prefixo}_Tsaida")
             else:
-                st.text_input("Tc,o — frio saída (°C) ✱",
-                              key=f"{prefixo}_Tsaida", placeholder="ex: 45")
+                ptext("Tc,o — frio saída (°C) ✱", f"{prefixo}_Tsaida")
 
-            st.markdown(
-                "<div class='card-warn'>➗ <b>Como a temperatura que falta "
-                "é calculada:</b><br>"
-                "1) Q do lado conhecido: Q = ṁ·cp·ΔT<br>"
-                "2) Iguala Q_quente = Q_frio<br>"
-                "3) Isola a T desconhecida: T = T_ent ± Q/(ṁ·cp)</div>",
-                unsafe_allow_html=True)
-
-        # ─── PÁGINA 2: Fluidos ───────────────────────────────────
+        # ─── PÁGINA 2 ───
         elif pag == 1:
             st.markdown(
-                "<div class='card-info'>💡 Cada fluido precisa de 4 propriedades "
-                "(ρ, μ, cp, k) e da vazão mássica. Use o banco de fluidos para "
-                "preencher automaticamente ou digite manualmente.</div>",
-                unsafe_allow_html=True)
-
-            if COOLPROP_DISPONIVEL:
-                st.markdown(
-                    f"<div class='card-ok'>🧬 CoolProp {COOLPROP_VERSAO} instalado — "
-                    f"{len(FLUIDOS_COOLPROP)} fluidos adicionais disponíveis</div>",
-                    unsafe_allow_html=True)
-            else:
-                st.markdown(
-                    "<div class='card-warn'>ℹ CoolProp não instalado — "
-                    "só Água e Ar disponíveis. Instale com: pip install CoolProp</div>",
-                    unsafe_allow_html=True)
-
-            # Widget de banco de fluidos
-            _widget_banco_fluidos(prefixo, cor)
-
-            st.markdown("---")
-            # Campos manuais — SEMPRE visíveis (podem ser preenchidos pelo banco)
-            st.subheader("🔵 Fluido — Casco (quente)")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.text_input("ρₛ — massa específica (kg/m³)",
-                              key=f"{prefixo}_rho_s", placeholder="ex: 983")
-                st.text_input("cp,s — calor específico (J/kg·K)",
-                              key=f"{prefixo}_cp_s", placeholder="ex: 4190")
-            with c2:
-                st.text_input("μₛ — viscosidade (Pa·s)",
-                              key=f"{prefixo}_mu_s", placeholder="ex: 4.6e-4")
-                st.text_input("kₛ — condutividade (W/m·K)",
-                              key=f"{prefixo}_k_s", placeholder="ex: 0.659")
-            st.text_input("ṁₛ — vazão mássica (kg/s)",
-                          key=f"{prefixo}_ms", placeholder="ex: 4.3")
-
-            st.markdown("---")
-            st.subheader("🔵 Fluido — Tubos (frio)")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.text_input("ρₜ — massa específica (kg/m³)",
-                              key=f"{prefixo}_rho_t", placeholder="ex: 998")
-                st.text_input("cp,t — calor específico (J/kg·K)",
-                              key=f"{prefixo}_cp_t", placeholder="ex: 4182")
-            with c2:
-                st.text_input("μₜ — viscosidade (Pa·s)",
-                              key=f"{prefixo}_mu_t", placeholder="ex: 8.9e-4")
-                st.text_input("kₜ — condutividade (W/m·K)",
-                              key=f"{prefixo}_k_t", placeholder="ex: 0.600")
-            st.text_input("ṁₜ — vazão mássica (kg/s)",
-                          key=f"{prefixo}_mt", placeholder="ex: 5.7")
-
-            # Dica
-            st.markdown(
-                "<div class='card-info'>🧱 <b>Temperatura da Parede (automático):</b> "
-                "o programa calcula iterativamente T_w e μ_w, corrigindo h por "
-                "φ = (μ_bulk/μ_w)^0.14.</div>",
-                unsafe_allow_html=True)
-
-        # ─── PÁGINA 3: Geometria ─────────────────────────────────
-        elif pag == 2:
-            st.markdown(
-                "<div class='card-info'>💡 A geometria define a área de troca "
-                "térmica disponível e como os fluidos escoam dentro do trocador."
+                "<div class='card-info'>"
+                "<b>💡 Objetivo:</b> definir propriedades dos fluidos e vazões. "
+                "Use o banco de fluidos abaixo para preencher automaticamente."
                 "</div>", unsafe_allow_html=True)
 
-            # Card "não sabe por onde começar"
+            # Banco de fluidos do casco
+            with st.expander("🔵 Banco de Dados — Fluido do Casco", expanded=True):
+                widget_fluido(prefixo, "s", cor)
+            st.markdown("**Propriedades do Casco (editáveis):**")
+            c1, c2 = st.columns(2)
+            with c1:
+                ptext("ρₛ (kg/m³)", f"{prefixo}_rho_s")
+                ptext("cp,s (J/kg·K)", f"{prefixo}_cp_s")
+                ptext("ṁₛ (kg/s)", f"{prefixo}_ms")
+            with c2:
+                ptext("μₛ (Pa·s)", f"{prefixo}_mu_s")
+                ptext("kₛ (W/m·K)", f"{prefixo}_k_s")
+
+            st.markdown("---")
+
+            # Banco de fluidos dos tubos
+            with st.expander("🟠 Banco de Dados — Fluido dos Tubos", expanded=True):
+                widget_fluido(prefixo, "t", cor)
+            st.markdown("**Propriedades dos Tubos (editáveis):**")
+            c1, c2 = st.columns(2)
+            with c1:
+                ptext("ρₜ (kg/m³)", f"{prefixo}_rho_t")
+                ptext("cp,t (J/kg·K)", f"{prefixo}_cp_t")
+                ptext("ṁₜ (kg/s)", f"{prefixo}_mt")
+            with c2:
+                ptext("μₜ (Pa·s)", f"{prefixo}_mu_t")
+                ptext("kₜ (W/m·K)", f"{prefixo}_k_t")
+
+        # ─── PÁGINA 3 ───
+        elif pag == 2:
             st.markdown(
-                "<div class='card-ok'>🔰 <b>NÃO SABE POR ONDE COMEÇAR?</b><br>"
-                "1) d_o: 3/4\" (0,01905 m) ou 1\" (0,02540 m)<br>"
-                "2) L_ta: 1,83 / 2,44 / 3,66 / 4,88 / 6,10 m<br>"
-                "3) L_tp: 1,25 × d_o (mínimo TEMA)<br>"
-                "4) D_s: use a calculadora Db → Ds abaixo<br>"
-                "5) Lbc: 0,2–1,0 × D_s (comece com 0,3 × D_s)</div>",
-                unsafe_allow_html=True)
+                "<div class='card-info'>"
+                "<b>💡 Objetivo:</b> definir a geometria do trocador. Use o botão "
+                "🔮 para estimar tudo a partir dos dados térmicos das páginas 1 e 2."
+                "</div>", unsafe_allow_html=True)
 
             if st.button("🔮 Estimar geometria a partir dos dados térmicos",
-                         key=f"{prefixo}_estim", use_container_width=True):
+                         key=f"{prefixo}_estimar", use_container_width=True):
                 _estimar_geometria(prefixo, metodo)
 
-            st.markdown("---")
+            # Correção 10 — ajuda contextual do tubo
+            st.markdown("#### 📐 Tubo")
+            with st.expander("💡 Ajuda — Geometria do Tubo", expanded=False):
+                st.markdown(
+                    "<div class='card-info'>"
+                    "<b>Valores comerciais (TEMA):</b><br>"
+                    "• d_o = 3/4\" → 0,01905 m<br>"
+                    "• d_o = 1\"   → 0,02540 m<br>"
+                    "• d_o = 1¼\"  → 0,03175 m<br>"
+                    "• d_o = 1½\"  → 0,03810 m<br><br>"
+                    "<b>Espessura típica (BWG 16-14):</b> 0,00165–0,00211 m<br><br>"
+                    "<b>Fórmula:</b> di = d_o − 2·e"
+                    "</div>", unsafe_allow_html=True)
 
-            st.subheader("📐 Tubo")
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("d_o — diâm. externo (m)",
-                              key=f"{prefixo}_d", placeholder="ex: 0.01905")
-                st.text_input("e — espessura (m)",
-                              key=f"{prefixo}_e_parede", placeholder="ex: 0.00165")
+                ptext("d_o — diâm. externo (m)", f"{prefixo}_d")
+                ptext("e — espessura (m)", f"{prefixo}_e_parede")
             with c2:
-                # di calculado
                 try:
-                    d_v = float(str(st.session_state.get(f"{prefixo}_d","0")).replace(",",".") or 0)
-                    e_v = float(str(st.session_state.get(f"{prefixo}_e_parede","0")).replace(",",".") or 0)
+                    d_v = pf(f"{prefixo}_d"); e_v = pf(f"{prefixo}_e_parede")
                     di_v = d_v - 2*e_v
-                    st.text_input("di — diâm. interno (m) [calculado]",
-                                  value=f"{di_v:.5f}", disabled=True)
+                    di_txt = f"{di_v:.5f}" if di_v > 0 else "—"
                 except:
-                    st.text_input("di — diâm. interno (m) [calculado]",
-                                  value="—", disabled=True)
-                st.selectbox("Material:", list(MATERIAIS.keys()),
-                             key=f"{prefixo}_material")
+                    di_txt = "—"
+                st.text_input("di — diâm. interno (m) [calculado]",
+                              value=di_txt, disabled=True)
+                pselect("Material:", f"{prefixo}_material", list(MATERIAIS.keys()))
 
-            st.markdown("---")
-            st.subheader("🏗️ Casco e Chicanas")
+            st.markdown("#### 🏗️ Casco e Chicanas")
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("Dₛ — diâm. casco (m)",
-                              key=f"{prefixo}_Ds", placeholder="ex: 0.387")
-                st.text_input("Lₜₐ — comp. tubo (m)",
-                              key=f"{prefixo}_Lta", placeholder="ex: 4.877")
-                st.text_input("Lₜₚ — passo tubos (m)",
-                              key=f"{prefixo}_Ltp", placeholder="ex: 0.025")
+                ptext("Dₛ — diâm. casco (m)", f"{prefixo}_Ds")
+                ptext("Lₜₐ — comp. tubo (m)", f"{prefixo}_Lta")
+                ptext("Lₜₚ — passo tubos (m)", f"{prefixo}_Ltp")
             with c2:
-                st.text_input("Lbc — espaç. chicanas (m)",
-                              key=f"{prefixo}_Lbc", placeholder="ex: 0.2")
-                st.text_input("Nₜ — nº de tubos",
-                              key=f"{prefixo}_Nt", placeholder="ex: 158")
-
+                ptext("Lbc — espaç. chicanas (m)", f"{prefixo}_Lbc")
+                ptext("Nₜ — nº de tubos", f"{prefixo}_Nt")
                 if metodo == "bd":
-                    st.text_input("Bc — corte chicana (%)",
-                                  key=f"{prefixo}_Bc", placeholder="ex: 25")
-                    st.text_input("Lbi — chicana-entrada (m)",
-                                  key=f"{prefixo}_Lbi", placeholder="ex: 0.2")
-                    st.text_input("Lbo — chicana-saída (m)",
-                                  key=f"{prefixo}_Lbo", placeholder="ex: 0.2")
-                    st.text_input("Nss — pares de tiras",
-                                  key=f"{prefixo}_Nss", placeholder="ex: 2")
+                    ptext("Bc — corte chicana (%)", f"{prefixo}_Bc", "25")
+                    ptext("Lbi — chicana-entrada (m)", f"{prefixo}_Lbi")
+                    ptext("Lbo — chicana-saída (m)", f"{prefixo}_Lbo")
+                    ptext("Nss — pares de tiras", f"{prefixo}_Nss", "2")
 
-            # Nb calculado (info)
-            try:
-                Lta_v = float(str(st.session_state.get(f"{prefixo}_Lta","0")).replace(",",".") or 0)
-                Lbc_v = float(str(st.session_state.get(f"{prefixo}_Lbc","0")).replace(",",".") or 0)
-                Nb_calc = max(1, int(Lta_v/Lbc_v)-1) if Lbc_v > 0 else 0
-                st.info(f"Nb calculado = **{Nb_calc}** chicanas")
-            except:
-                pass
+            # Nb calculado
+            Lta_v = pf(f"{prefixo}_Lta"); Lbc_v = pf(f"{prefixo}_Lbc")
+            if Lbc_v > 0:
+                Nb_calc = max(1, int(Lta_v/Lbc_v) - 1)
+                st.markdown(
+                    f"<div class='card-ok'>Nb calculado = <b>{Nb_calc}</b> chicanas</div>",
+                    unsafe_allow_html=True)
 
+            # Correção 10 — ajuda contextual de θ e Np
+            st.markdown("#### ⚙️ Arranjo e Passes")
             c1, c2 = st.columns(2)
             with c1:
-                st.selectbox("Ângulo θ:", [30,45,60,90] if metodo=="kern" else [30,45,90],
-                             key=f"{prefixo}_theta")
+                theta_opts = [30,45,60,90] if metodo=="kern" else [30,45,90]
+                theta = pselect("Ângulo θ:", f"{prefixo}_theta", theta_opts)
+                with st.expander("💡 O que é θ?", expanded=False):
+                    st.markdown("""
+**Ângulo do arranjo dos tubos** — define como os tubos são distribuídos
+no interior do casco.
+
+| θ | Compacidade | Limpeza mecânica | ΔP casco |
+|:---:|:---:|:---:|:---:|
+| **30°** (triangular) | ✅ Alta | ❌ Só química | Alto |
+| **45°** (quadrado rot.) | Média | Limitada | Médio |
+| **60°** (triangular rot.) | Alta | ❌ Só química | Alto |
+| **90°** (quadrado) | Baixa | ✅ Fácil | Baixo |
+
+**Recomendação:**
+- Fluidos limpos → 30°
+- Fluidos com fouling → 90°
+- Caso intermediário → 45°
+""")
             with c2:
-                st.selectbox("Passes Nₚ:", [1,2,4,6,8], key=f"{prefixo}_Np")
+                Np = pselect("Passes Nₚ:", f"{prefixo}_Np", [1,2,4,6,8])
+                with st.expander("💡 O que é Nₚ?", expanded=False):
+                    st.markdown("""
+**Número de passes nos tubos** — quantas vezes o fluido frio percorre
+o feixe antes de sair.
+
+| Nₚ | v_tubo | h_tubo | ΔP_tubo | Fator F |
+|:---:|:---:|:---:|:---:|:---:|
+| 1 | Menor | Menor | Mínimo | 1,00 |
+| 2 | Dupla | Maior | 2× | ~0,90 |
+| 4 | Alta | Muito maior | 4× | ~0,85 |
+| 6 | Muito alta | — | 6× | Pode ser < 0,75 |
+
+**Recomendação:**
+- Nₚ = 1 → quando F precisa ser 1,0 (contracorrente)
+- Nₚ = 2 → maioria dos casos industriais
+- Nₚ = 4 → fluidos viscosos no tubo
+- Nₚ ≥ 6 → use 2 cascos em série
+""")
 
             # Calculadora Db → Ds
             with st.expander("📐 Calculadora Db → Ds (Coulson & Richardson)"):
                 if st.button("Calcular Db e Ds", key=f"{prefixo}_btn_db"):
                     try:
-                        Nt_v = int(float(st.session_state.get(f"{prefixo}_Nt","0") or 0))
-                        do_v = float(str(st.session_state.get(f"{prefixo}_d","0")).replace(",",".") or 0)
-                        Np_v = int(st.session_state.get(f"{prefixo}_Np", 1))
-                        th_v = int(st.session_state.get(f"{prefixo}_theta", 30))
+                        Nt_v = pi(f"{prefixo}_Nt")
+                        do_v = pf(f"{prefixo}_d")
+                        Np_v = int(_V(f"{prefixo}_Np", 1))
+                        th_v = int(_V(f"{prefixo}_theta", 30))
                         r = bundle_diameter(Nt_v, do_v, Np_v, th_v)
-                        st.success(f"**Db = {r['Db']*1000:.1f} mm**  |  **Ds = {r['Ds']*1000:.1f} mm**")
-                        st.caption(f"K₁={r['K1']}  n={r['n1']}  |  Ltp sugerido = {r['Ltp_sug']*1000:.2f} mm")
-                        st.session_state[f"{prefixo}_Db_est"] = r['Db']
-                        st.session_state[f"{prefixo}_Ds_est"] = r['Ds']
-                        st.session_state[f"{prefixo}_Ltp_sug"] = r['Ltp_sug']
+                        _S(f"{prefixo}_Ds_est", f"{r['Ds']:.4f}")
+                        _S(f"{prefixo}_Ltp_sug", f"{r['Ltp_sug']:.5f}")
+                        st.success(f"**Db = {r['Db']*1000:.1f} mm**  |  **Ds sugerido = {r['Ds']*1000:.1f} mm**")
+                        st.caption(f"K₁ = {r['K1']}  n = {r['n1']}  |  Ltp sug. = {r['Ltp_sug']*1000:.2f} mm")
                     except Exception as e:
                         st.error(f"Erro: {e}")
-                if f"{prefixo}_Ds_est" in st.session_state:
-                    if st.button("↑ Usar Ds e Ltp estimados", key=f"{prefixo}_usar_db"):
-                        st.session_state[f"{prefixo}_Ds"] = f"{st.session_state[f'{prefixo}_Ds_est']:.4f}"
-                        st.session_state[f"{prefixo}_Ltp"] = f"{st.session_state[f'{prefixo}_Ltp_sug']:.5f}"
+                if _V(f"{prefixo}_Ds_est"):
+                    if st.button("↑ Usar Ds sugerido nos campos", key=f"{prefixo}_usar_db"):
+                        _S(f"{prefixo}_Ds", _V(f"{prefixo}_Ds_est"))
+                        _S(f"{prefixo}_Ltp", _V(f"{prefixo}_Ltp_sug"))
                         st.rerun()
 
-            if metodo == "bd":
-                with st.expander("📏 Folgas TEMA"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.text_input("Lbb (mm)", key=f"{prefixo}_Lbb", placeholder="ex: 11.0")
-                        st.text_input("Ltb (mm)", key=f"{prefixo}_Ltb", placeholder="ex: 0.8")
-                    with c2:
-                        if st.button("↻ Recalcular folgas TEMA", key=f"{prefixo}_tema"):
-                            try:
-                                Ds_mm = float(str(st.session_state.get(f"{prefixo}_Ds","0")).replace(",",".") or 0)*1000
-                                f = folgas_tema(Ds_mm)
-                                st.session_state[f"{prefixo}_Lbb"] = f"{f['Lbb_mm']:.2f}"
-                                st.session_state[f"{prefixo}_Ltb"] = f"{f['Ltb_mm']:.2f}"
-                                st.rerun()
-                            except: pass
-
-        # ─── PÁGINA 4: Cálculo ───────────────────────────────────
+        # ─── PÁGINA 4 ───
         elif pag == 3:
             st.markdown(
-                "<div class='card-info'>💡 Última etapa: limites de ΔP, mudança "
-                "de fase (se houver) e fouling. Depois clique em "
-                "<b>▶ CALCULAR</b>.</div>", unsafe_allow_html=True)
+                "<div class='card-info'>"
+                "<b>💡 Objetivo:</b> limites de ΔP, mudança de fase e fouling. "
+                "Depois clique em <b>▶ CALCULAR</b>."
+                "</div>", unsafe_allow_html=True)
 
-            st.subheader("⚡ Limites de ΔP")
-            preset = st.selectbox("Preset de serviço:", list(LIMITES_DP.keys()),
-                                  key=f"{prefixo}_preset_dp")
-            ds0, dt0, ref0 = LIMITES_DP[preset]
+            st.markdown("#### ⚡ Limites de ΔP")
+            preset = pselect("Preset de serviço:", f"{prefixo}_preset_dp",
+                             list(LIMITES_DP.keys()))
+            ds0, dt0, ref0 = LIMITES_DP.get(preset, (0,0,""))
             if ds0 > 0:
-                st.caption(f"Ref: {ref0} | ΔPs={ds0} kPa  ΔPt={dt0} kPa")
-                st.session_state[f"{prefixo}_dPs_max"] = str(ds0)
-                st.session_state[f"{prefixo}_dPt_max"] = str(dt0)
+                _S(f"{prefixo}_dPs_max", str(ds0))
+                _S(f"{prefixo}_dPt_max", str(dt0))
+                st.markdown(
+                    f"<div class='card-info'>📖 <b>Referência:</b> {ref0}<br>"
+                    f"ΔPs máx = {ds0} kPa  |  ΔPt máx = {dt0} kPa</div>",
+                    unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("ΔP máx. casco (kPa)", key=f"{prefixo}_dPs_max", placeholder="ex: 70")
+                ptext("ΔP máx. casco (kPa)", f"{prefixo}_dPs_max")
             with c2:
-                st.text_input("ΔP máx. tubos (kPa)", key=f"{prefixo}_dPt_max", placeholder="ex: 100")
+                ptext("ΔP máx. tubos (kPa)", f"{prefixo}_dPt_max")
 
             st.markdown("---")
-            st.subheader("⇌ Mudança de Fase")
+            st.markdown("#### ⇌ Mudança de Fase")
             ativa = st.checkbox("Há mudança de fase?", key=f"{prefixo}_fase_on")
             if ativa:
-                st.radio("Tipo:", ["Condensação","Vaporização"],
-                         key=f"{prefixo}_fase_tipo", horizontal=True)
-                st.radio("Lado afetado:", ["Casco (quente)","Tubos (frio)"],
-                         key=f"{prefixo}_fase_lado", horizontal=True)
+                pradio("Tipo:", f"{prefixo}_fase_tipo",
+                       ["Condensação","Vaporização"], horizontal=True)
+                pradio("Lado afetado:", f"{prefixo}_fase_lado",
+                       ["Casco (quente)","Tubos (frio)"], horizontal=True)
                 c1, c2 = st.columns(2)
                 with c1:
-                    st.text_input("λ — calor latente (kJ/kg)",
-                                  key=f"{prefixo}_lambda", placeholder="ex: 2257")
+                    ptext("λ — calor latente (kJ/kg)", f"{prefixo}_lambda", "2257")
                 with c2:
-                    st.text_input("x — fração [0-1]",
-                                  key=f"{prefixo}_frac", placeholder="ex: 1.0")
+                    ptext("x — fração [0-1]", f"{prefixo}_frac", "1.0")
 
             st.markdown("---")
-            st.subheader("🔧 Fouling")
-            fp = st.selectbox("Preset TEMA:", list(FOULING_PRESETS.keys()),
-                              key=f"{prefixo}_fp")
-            fe0, fi0 = FOULING_PRESETS[fp]
+            st.markdown("#### 🔧 Fouling (incrustação)")
+            fp = pselect("Preset TEMA:", f"{prefixo}_fp",
+                         list(FOULING_PRESETS.keys()))
+            fe0, fi0 = FOULING_PRESETS.get(fp, (0.0002, 0.0002))
             if fp != "Personalizado":
-                st.session_state[f"{prefixo}_Rfe"] = str(fe0)
-                st.session_state[f"{prefixo}_Rfi"] = str(fi0)
+                _S(f"{prefixo}_Rfe", str(fe0))
+                _S(f"{prefixo}_Rfi", str(fi0))
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("Rf ext (m²·K/W)", key=f"{prefixo}_Rfe", placeholder="ex: 0.0002")
+                ptext("Rf externo (m²·K/W)", f"{prefixo}_Rfe")
             with c2:
-                st.text_input("Rf int (m²·K/W)", key=f"{prefixo}_Rfi", placeholder="ex: 0.0002")
+                ptext("Rf interno (m²·K/W)", f"{prefixo}_Rfi")
 
             st.markdown("---")
-            if st.button(f"▶ CALCULAR — {metodo.upper()}", key=f"{prefixo}_calc",
-                         use_container_width=True, type="primary"):
+            if st.button(f"▶ CALCULAR — {metodo.upper()}",
+                         key=f"{prefixo}_calc",
+                         use_container_width=True,
+                         type="primary"):
                 _executar_calculo(prefixo, metodo)
 
-    # ═════════════════════════════════════════════════════════════
-    #  COLUNA DIREITA — RESULTADOS EM 3 ABAS
-    # ═════════════════════════════════════════════════════════════
+    # ══════════ COLUNA DIREITA ══════════
     with col_r:
-        st.subheader(f"📊 Resultados — {metodo.upper()}")
-        t_resumo, t_etapa, t_memo = st.tabs(["📊 Resumo", "🧭 Nesta Etapa", "📘 Memorial"])
+        st.markdown(f"### 📊 Resultados — {metodo.upper()}")
+
+        # Correção 8 — "Nesta Etapa" em destaque (primeira aba)
+        t_etapa, t_resumo, t_memo = st.tabs(
+            ["🧭 Nesta Etapa", "📊 Resumo", "📘 Memorial"])
+
+        with t_etapa:
+            texto = NESTA_ETAPA[pag]
+            st.markdown(f"<div class='nesta-box'>{texto}</div>",
+                        unsafe_allow_html=True)
+            # Correção 7 — T_parede explicada dentro de Nesta Etapa (pág 2)
+            if pag == 1:
+                st.markdown("---")
+                st.markdown("#### 🧱 Temperatura da Parede (cálculo iterativo)")
+                st.markdown("""
+<div class='card-info'>
+<b>Por que importa:</b> a viscosidade dos líquidos muda perto da parede
+(mais fria ou mais quente), alterando o perfil de velocidade e o
+coeficiente h. Ignorar isso <b>superestima h</b> em até 20–30%.
+
+<b>Como o programa faz:</b>
+<ol style='margin-top:8px;'>
+<li>Chuta T_parede = média(T_quente, T_fria)</li>
+<li>Calcula μ de cada fluido em T_parede (Andrade para líquidos)</li>
+<li>Recalcula h com φ = (μ_bulk / μ_w)^0,14</li>
+<li>Recalcula T_parede pelo circuito de resistências</li>
+<li>Repete 2–4 até T_parede variar menos que 0,1 °C</li>
+</ol>
+Normalmente converge em 2–4 iterações.
+</div>
+""", unsafe_allow_html=True)
 
         with t_resumo:
             resultado = st.session_state.get(f"{prefixo}_resultado")
@@ -900,17 +1167,7 @@ def render_aba(prefixo, cor, metodo):
                 st.markdown(f"<div class='result-box'>{resultado}</div>",
                             unsafe_allow_html=True)
             else:
-                st.info("Preencha os campos e clique em ▶ CALCULAR.\n\n"
-                        "**Novidades v5:**\n"
-                        "- Etapas passo a passo com validação\n"
-                        "- Aba 🧭 Nesta Etapa com fórmulas\n"
-                        "- Aba 📘 Memorial de Cálculo\n"
-                        "- CoolProp integrado (42 fluidos extras)")
-
-        with t_etapa:
-            texto = explic_etapa(pag, metodo)
-            st.markdown(f"<div class='nesta-etapa'>{texto}</div>",
-                        unsafe_allow_html=True)
+                st.info("Preencha os campos e clique em ▶ CALCULAR na coluna da esquerda.")
 
         with t_memo:
             memo = st.session_state.get(f"{prefixo}_memorial")
@@ -918,147 +1175,10 @@ def render_aba(prefixo, cor, metodo):
                 st.markdown(f"<div class='result-box'>{memo}</div>",
                             unsafe_allow_html=True)
             else:
-                st.info("O memorial de cálculo passo a passo aparece aqui "
-                        "após você clicar em ▶ CALCULAR.")
+                st.info("O memorial aparece após CALCULAR.")
 
 # ═════════════════════════════════════════════════════════════════
-#  VALIDAÇÃO DE PÁGINA
-# ═════════════════════════════════════════════════════════════════
-def validar_pagina(prefixo, pag):
-    """Retorna (ok, lista_de_faltantes)."""
-    obrig = {
-        0: [f"{prefixo}_Thi", f"{prefixo}_Tci", f"{prefixo}_Tsaida"],
-        1: [f"{prefixo}_rho_s", f"{prefixo}_mu_s", f"{prefixo}_cp_s", f"{prefixo}_k_s",
-            f"{prefixo}_ms",
-            f"{prefixo}_rho_t", f"{prefixo}_mu_t", f"{prefixo}_cp_t", f"{prefixo}_k_t",
-            f"{prefixo}_mt"],
-        2: [f"{prefixo}_d", f"{prefixo}_e_parede", f"{prefixo}_Ds",
-            f"{prefixo}_Lta", f"{prefixo}_Ltp", f"{prefixo}_Lbc", f"{prefixo}_Nt"],
-        3: [],
-    }
-    nomes_bonitos = {
-        f"{prefixo}_Thi": "Th,i — T entrada quente (°C)",
-        f"{prefixo}_Tci": "Tc,i — T entrada frio (°C)",
-        f"{prefixo}_Tsaida": "T de saída (°C)",
-        f"{prefixo}_rho_s": "ρₛ — massa específica casco",
-        f"{prefixo}_mu_s": "μₛ — viscosidade casco",
-        f"{prefixo}_cp_s": "cp,s — calor específico casco",
-        f"{prefixo}_k_s": "kₛ — condutividade casco",
-        f"{prefixo}_ms": "ṁₛ — vazão mássica casco",
-        f"{prefixo}_rho_t": "ρₜ — massa específica tubos",
-        f"{prefixo}_mu_t": "μₜ — viscosidade tubos",
-        f"{prefixo}_cp_t": "cp,t — calor específico tubos",
-        f"{prefixo}_k_t": "kₜ — condutividade tubos",
-        f"{prefixo}_mt": "ṁₜ — vazão mássica tubos",
-        f"{prefixo}_d": "d_o — diâmetro externo do tubo",
-        f"{prefixo}_e_parede": "e — espessura da parede",
-        f"{prefixo}_Ds": "Dₛ — diâmetro do casco",
-        f"{prefixo}_Lta": "Lₜₐ — comprimento do tubo",
-        f"{prefixo}_Ltp": "Lₜₚ — passo dos tubos",
-        f"{prefixo}_Lbc": "Lbc — espaçamento entre chicanas",
-        f"{prefixo}_Nt": "Nₜ — número de tubos",
-    }
-    faltando = []
-    for k in obrig.get(pag, []):
-        v = st.session_state.get(k, "")
-        if not str(v).strip():
-            faltando.append(nomes_bonitos.get(k, k))
-    return (len(faltando) == 0, faltando)
-
-# ═════════════════════════════════════════════════════════════════
-#  PARSER
-# ═════════════════════════════════════════════════════════════════
-def pf(key, default=0.0):
-    try:
-        return float(str(st.session_state.get(key, "")).replace(",", ".").strip())
-    except:
-        return default
-
-def pi(key, default=0):
-    try:
-        return int(float(str(st.session_state.get(key, "")).replace(",", ".").strip()))
-    except:
-        return default
-
-# ═════════════════════════════════════════════════════════════════
-#  WIDGET BANCO DE FLUIDOS
-# ═════════════════════════════════════════════════════════════════
-def _widget_banco_fluidos(prefixo, cor):
-    with st.expander("🧪 Banco de Dados de Fluidos", expanded=True):
-        nomes = list(FLUIDOS_DB.keys())
-        if COOLPROP_DISPONIVEL:
-            nomes += sorted(FLUIDOS_COOLPROP.keys())
-
-        fluido = st.selectbox("Fluido:", nomes, key=f"{prefixo}_fluido")
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.text_input("T referência (°C)", key=f"{prefixo}_T_ref", placeholder="ex: 80")
-        with c2:
-            st.text_input("P referência (kPa)", key=f"{prefixo}_P_ref",
-                          value="101.325")
-        with c3:
-            st.markdown("<br>", unsafe_allow_html=True)
-            btn_sugerir = st.button("💡 Sugerir P", key=f"{prefixo}_sugerir_p")
-
-        if btn_sugerir:
-            _sugerir_pressao(prefixo, fluido)
-
-        if st.button(f"🔎 Buscar propriedades", key=f"{prefixo}_buscar",
-                     use_container_width=True):
-            _buscar_fluido(prefixo, fluido, cor)
-
-        # Refino iterativo
-        st.caption("↺ Após CALCULAR, use a T média para refinar")
-        if st.button("↺ Usar T média (bulk) calculada", key=f"{prefixo}_bulk"):
-            _usar_bulk(prefixo, fluido, cor)
-
-def _buscar_fluido(prefixo, nome, cor):
-    try:
-        T = pf(f"{prefixo}_T_ref")
-        P_kPa = pf(f"{prefixo}_P_ref", 101.325)
-        p = propriedades_fluido(nome, T, P_Pa=P_kPa*1000.0)
-        st.session_state[f"{prefixo}_rho_s"] = f"{p['rho']:.4f}"
-        st.session_state[f"{prefixo}_mu_s"]  = f"{p['mu']:.6e}"
-        st.session_state[f"{prefixo}_cp_s"]  = f"{p['cp']:.2f}"
-        st.session_state[f"{prefixo}_k_s"]   = f"{p['k']:.5f}"
-        aviso = "⚠ T fora da faixa!" if p["fora_faixa"] else "✔ dentro da faixa"
-        fase_txt = f" | fase: {p['fase']}" if p.get("fase") else ""
-        st.success(f"Preenchido: ρ={p['rho']:.2f}  μ={p['mu']:.3e}  cp={p['cp']:.1f}  k={p['k']:.4f}")
-        st.caption(f"Faixa: {p['faixa'][0]:.1f} a {p['faixa'][1]:.1f} °C {aviso}{fase_txt} | {p['fonte']}")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Erro: {e}")
-
-def _sugerir_pressao(prefixo, nome):
-    if nome not in FLUIDOS_COOLPROP or not COOLPROP_DISPONIVEL:
-        st.info("Sugestão de P só funciona para fluidos do CoolProp.")
-        return
-    try:
-        T = pf(f"{prefixo}_T_ref")
-        fid = FLUIDOS_COOLPROP[nome]
-        T_K = T + 273.15
-        T_sat_K = _CP.PropsSI("T","P",101325.0,"Q",0,fid)
-        P_sat_Pa = _CP.PropsSI("P","T",T_K,"Q",0,fid)
-        P_sat_kPa = P_sat_Pa/1000
-        st.info(
-            f"T_sat @ 1 atm = {T_sat_K-273.15:.1f} °C\n\n"
-            f"P_sat em {T:.1f} °C = {P_sat_kPa:.2f} kPa\n\n"
-            f"Líquido: P > {P_sat_kPa:.1f} kPa (sugestão {P_sat_kPa*1.2:.0f})\n"
-            f"Vapor:   P < {P_sat_kPa:.1f} kPa (sugestão {P_sat_kPa*0.5:.0f})")
-    except Exception as e:
-        st.warning(f"Sem saturação nesta T: {str(e)[:100]}")
-
-def _usar_bulk(prefixo, nome, cor):
-    T_bulk = st.session_state.get(f"{prefixo}_T_bulk")
-    if T_bulk is None:
-        st.info("Faça um cálculo primeiro para obter a T média.")
-        return
-    st.session_state[f"{prefixo}_T_ref"] = f"{T_bulk:.2f}"
-    _buscar_fluido(prefixo, nome, cor)
-
-# ═════════════════════════════════════════════════════════════════
-#  ESTIMAR GEOMETRIA
+#  ESTIMAR GEOMETRIA (Correção 9 — bug resolvido)
 # ═════════════════════════════════════════════════════════════════
 def _estimar_geometria(prefixo, metodo):
     try:
@@ -1066,47 +1186,67 @@ def _estimar_geometria(prefixo, metodo):
         Tsaida = pf(f"{prefixo}_Tsaida")
         ms = pf(f"{prefixo}_ms"); cp_s = pf(f"{prefixo}_cp_s")
         mt = pf(f"{prefixo}_mt"); cp_t = pf(f"{prefixo}_cp_t")
-        if st.session_state.get(f"{prefixo}_obj","").startswith("Th,o"):
-            Tho, Tco, Q = resolver_T("Th,o", Thi, Tci, Tsaida, ms, cp_s, mt, cp_t)
-        else:
-            Tho, Tco, Q = resolver_T("Tc,o", Thi, Tci, Tsaida, ms, cp_s, mt, cp_t)
+
+        # Correção 9: leitura robusta do objetivo
+        obj_raw = _V(f"{prefixo}_obj", "Th,o → calcula Tc,o")
+        obj = "Th,o" if "Th,o" in str(obj_raw)[:6] else "Tc,o"
+
+        # Validação antes de calcular
+        if Thi == 0 or Tci == 0 or Tsaida == 0:
+            st.error("⚠️ Preencha as temperaturas na Página 1 antes de estimar.")
+            return
+        if ms == 0 or cp_s == 0 or mt == 0 or cp_t == 0:
+            st.error("⚠️ Preencha vazões e cp na Página 2 antes de estimar.")
+            return
+
+        Tho, Tco, Q = resolver_T(obj, Thi, Tci, Tsaida, ms, cp_s, mt, cp_t)
         lmtd_v = lmtd(Thi, Tho, Tci, Tco)
-        # U típico pela viscosidade
+
         mu_s_e = pf(f"{prefixo}_mu_s", 1e-3)
         mu_t_e = pf(f"{prefixo}_mu_t", 1e-3)
         if max(mu_s_e, mu_t_e) > 1e-3:
             U_tip, tipo = 400, "líquido–líquido viscoso"
         else:
             U_tip, tipo = 900, "líquido–líquido pouco viscoso"
+
         A_min = Q/(U_tip*lmtd_v)
         A_alvo = A_min * 1.15
         do, Lta = 0.01905, 4.88
         Ltp = 1.25 * do
         Nt = max(1, math.ceil(A_alvo/(math.pi*do*Lta)))
-        Np = pi(f"{prefixo}_Np", 1)
-        theta = pi(f"{prefixo}_theta", 30)
-        r = bundle_diameter(Nt, do, Np, theta)
+        Np_v = int(_V(f"{prefixo}_Np", 1))
+        theta_v = int(_V(f"{prefixo}_theta", 30))
+        r = bundle_diameter(Nt, do, Np_v, theta_v)
         Ds = r["Ds"]; Lbc = 0.30 * Ds
-        st.session_state[f"{prefixo}_d"] = f"{do:.5f}"
-        st.session_state[f"{prefixo}_e_parede"] = "0.00165"
-        st.session_state[f"{prefixo}_Lta"] = f"{Lta}"
-        st.session_state[f"{prefixo}_Ltp"] = f"{Ltp:.5f}"
-        st.session_state[f"{prefixo}_Ds"] = f"{Ds:.4f}"
-        st.session_state[f"{prefixo}_Lbc"] = f"{Lbc:.3f}"
-        st.session_state[f"{prefixo}_Nt"] = f"{Nt}"
+
+        _S(f"{prefixo}_d", f"{do:.5f}")
+        _S(f"{prefixo}_e_parede", "0.00165")
+        _S(f"{prefixo}_Lta", f"{Lta}")
+        _S(f"{prefixo}_Ltp", f"{Ltp:.5f}")
+        _S(f"{prefixo}_Ds", f"{Ds:.4f}")
+        _S(f"{prefixo}_Lbc", f"{Lbc:.3f}")
+        _S(f"{prefixo}_Nt", f"{Nt}")
         if metodo == "bd":
-            st.session_state[f"{prefixo}_Bc"] = "25"
-            st.session_state[f"{prefixo}_Lbi"] = f"{Lbc:.3f}"
-            st.session_state[f"{prefixo}_Lbo"] = f"{Lbc:.3f}"
-            st.session_state[f"{prefixo}_Nss"] = "2"
+            _S(f"{prefixo}_Bc", "25")
+            _S(f"{prefixo}_Lbi", f"{Lbc:.3f}")
+            _S(f"{prefixo}_Lbo", f"{Lbc:.3f}")
+            _S(f"{prefixo}_Nss", "2")
+
         st.success(
-            f"**Geometria estimada:**\n\n"
-            f"Q = {Q/1000:.2f} kW | LMTD = {lmtd_v:.2f} °C | {tipo}\n"
-            f"U típico = {U_tip} W/m²·K → A_alvo = {A_alvo:.2f} m²\n"
-            f"d_o = {do:.5f} m | Lta = {Lta} m | Nt = {Nt} | Ds = {Ds:.4f} m | Lbc = {Lbc:.3f} m")
+            f"✅ **Geometria estimada com sucesso!**\n\n"
+            f"Q = {Q/1000:.2f} kW · LMTD = {lmtd_v:.2f} °C · {tipo}\n\n"
+            f"U típico = {U_tip} W/m²·K → A_alvo = {A_alvo:.2f} m²\n\n"
+            f"• d_o = {do:.5f} m\n"
+            f"• Lta = {Lta} m\n"
+            f"• Nt = {Nt} tubos\n"
+            f"• Ltp = {Ltp:.5f} m\n"
+            f"• Ds = {Ds:.4f} m\n"
+            f"• Lbc = {Lbc:.3f} m")
         st.rerun()
+    except ValueError as e:
+        st.error(f"⚠️ {e}")
     except Exception as e:
-        st.error(f"Erro na estimativa: {e}")
+        st.error(f"Erro: {e}")
 
 # ═════════════════════════════════════════════════════════════════
 #  EXECUTAR CÁLCULO
@@ -1115,24 +1255,23 @@ def _executar_calculo(prefixo, metodo):
     try:
         Thi = pf(f"{prefixo}_Thi"); Tci = pf(f"{prefixo}_Tci")
         Tsaida = pf(f"{prefixo}_Tsaida")
-        obj = "Th,o" if st.session_state.get(f"{prefixo}_obj","").startswith("Th,o") else "Tc,o"
+        obj_raw = _V(f"{prefixo}_obj", "Th,o")
+        obj = "Th,o" if "Th,o" in str(obj_raw)[:6] else "Tc,o"
         rho_s = pf(f"{prefixo}_rho_s"); mu_s = pf(f"{prefixo}_mu_s")
         cp_s = pf(f"{prefixo}_cp_s"); k_s = pf(f"{prefixo}_k_s"); ms = pf(f"{prefixo}_ms")
         rho_t = pf(f"{prefixo}_rho_t"); mu_t = pf(f"{prefixo}_mu_t")
         cp_t = pf(f"{prefixo}_cp_t"); k_t = pf(f"{prefixo}_k_t"); mt = pf(f"{prefixo}_mt")
         d = pf(f"{prefixo}_d"); e_p = pf(f"{prefixo}_e_parede"); di = d - 2*e_p
         Lta = pf(f"{prefixo}_Lta"); Ltp = pf(f"{prefixo}_Ltp")
-        Ds = pf(f"{prefixo}_Ds"); Lbc = pf(f"{prefixo}_Lbc")
-        Nt = pi(f"{prefixo}_Nt")
-        theta = pi(f"{prefixo}_theta", 30); Np = pi(f"{prefixo}_Np", 1)
-        kpar = MATERIAIS.get(st.session_state.get(f"{prefixo}_material","Aço Carbono"), 50.0)
+        Ds = pf(f"{prefixo}_Ds"); Lbc = pf(f"{prefixo}_Lbc"); Nt = pi(f"{prefixo}_Nt")
+        theta = int(_V(f"{prefixo}_theta", 30)); Np = int(_V(f"{prefixo}_Np", 1))
+        kpar = MATERIAIS.get(_V(f"{prefixo}_material", "Aço Carbono"), 50.0)
 
-        # Calor latente
         lam = frac = 0.0; lado_fase = ""
         if st.session_state.get(f"{prefixo}_fase_on"):
             lam = pf(f"{prefixo}_lambda") * 1000.0
             frac = pf(f"{prefixo}_frac", 1.0)
-            lado_fase = st.session_state.get(f"{prefixo}_fase_lado","")
+            lado_fase = _V(f"{prefixo}_fase_lado", "")
         Q_lat_s = ms * lam * frac if "Casco" in lado_fase else 0
         Q_lat_t = mt * lam * frac if "Tubo" in lado_fase else 0
 
@@ -1145,12 +1284,11 @@ def _executar_calculo(prefixo, metodo):
         Rfe = pf(f"{prefixo}_Rfe", 0.0002)
         Rfi = pf(f"{prefixo}_Rfi", 0.0002)
 
-        # ─── Cálculo ───
         if metodo == "kern":
             geo0 = kern_geo(d, di, Lta, Ltp, theta, Ds, Lbc, Np)
             def hck(mw): return kern_casco(ms, mu_s, cp_s, k_s, geo0)["hs"]
             def htk(mw): return kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw, d, di, Lta, Nt, Np)["ht"]
-            mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T), 
+            mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T),
                          lambda T: mu_parede(mu_t, Tbt, T), hck, htk)
             casco = kern_casco(ms, mu_s, cp_s, k_s, geo0)
             Nb = max(1, int(Lta/Lbc)-1) if Lbc > 0 else 1
@@ -1160,18 +1298,18 @@ def _executar_calculo(prefixo, metodo):
             Ai = Nt * math.pi * d * Lta
             ex = (Ai/glob["A"]-1)*100 if glob["A"] > 0 else 0
             dPs_kPa = press["dPs"]/1000; dPt_kPa = tubos["dPt"]/1000
-            metodo_label = "KERN"
+            label = "KERN"
         else:
             Bc = pf(f"{prefixo}_Bc", 25); Lbi = pf(f"{prefixo}_Lbi", Lbc)
             Lbo = pf(f"{prefixo}_Lbo", Lbc); Nss = pf(f"{prefixo}_Nss", 2)
-            Lbb_m = pf(f"{prefixo}_Lbb")/1000 if st.session_state.get(f"{prefixo}_Lbb") else None
+            Lbb_m = pf(f"{prefixo}_Lbb")/1000 if _V(f"{prefixo}_Lbb") else None
             Ltb_m = pf(f"{prefixo}_Ltb", 0.8)/1000
             geo0 = bd_geo(d, Lta, Ltp, theta, Ds, Bc, Lbc, Lbi, Lbo, Nt, Nss, Lbb_m, Ltb_m)
             Gs0 = ms/geo0["Sm"]; Res0 = d*Gs0/mu_s
             fat0 = bd_fat(geo0, Res0, geo0["Nb"], Lbi, Lbo, Lbc, Nss)
             def hcb(mw): return bd_casco(ms, mu_s, cp_s, k_s, mw, d, Ltp, theta, geo0, fat0)["hi"]
             def htb(mw): return kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw, d, di, Lta, Nt, Np)["ht"]
-            mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T), 
+            mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T),
                          lambda T: mu_parede(mu_t, Tbt, T), hcb, htb)
             geo = bd_geo(d, Lta, Ltp, theta, Ds, Bc, Lbc, Lbi, Lbo, Nt, Nss, Lbb_m, Ltb_m)
             Nb = geo["Nb"]; Res_e = d*(ms/geo["Sm"])/mu_s
@@ -1184,150 +1322,134 @@ def _executar_calculo(prefixo, metodo):
             ex = (Ai/glob["A"]-1)*100 if glob["A"] > 0 else 0
             dPs_kPa = press["dPs"]/1000; dPt_kPa = tubos["dPt"]/1000
             PJ = fat["Jc"]*fat["Jl"]*fat["Jb"]*fat["Js"]*fat["Jr"]
-            metodo_label = "BELL-DELAWARE"
+            label = "BELL-DELAWARE"
 
         # Guarda T_bulk para o botão de refino
-        st.session_state[f"{prefixo}_T_bulk"] = Tbs  # aproximação; ideal é separar por lado
+        st.session_state[f"{prefixo}_Tbulk_s"] = Tbs
+        st.session_state[f"{prefixo}_Tbulk_t"] = Tbt
 
-        # ─── Resultado textual ───
-        dPs_max = pf(f"{prefixo}_dPs_max", 70)
-        dPt_max = pf(f"{prefixo}_dPt_max", 100)
-        dPs_ok = "✓ OK" if dPs_kPa <= dPs_max else "⚠ EXCEDE"
-        dPt_ok = "✓ OK" if dPt_kPa <= dPt_max else "⚠ EXCEDE"
+        dPs_max = pf(f"{prefixo}_dPs_max", 70); dPt_max = pf(f"{prefixo}_dPt_max", 100)
+        ok_ps = "✓ OK" if dPs_kPa <= dPs_max else "⚠️ EXCEDE"
+        ok_pt = "✓ OK" if dPt_kPa <= dPt_max else "⚠️ EXCEDE"
 
-        # Diagnóstico de área
-        if ex < 0:
-            diag = "❌ ÁREA INSUFICIENTE"
-        elif ex < 10:
-            diag = "⚠️ MARGEM ESTREITA (< 10%)"
-        elif ex <= 25:
-            diag = "✅ PROJETO ADEQUADO (10–25%)"
-        elif ex <= 35:
-            diag = "⚠️ LEVE SUPERDIMENSIONAMENTO (25–35%)"
-        else:
-            diag = "❌ SUPERDIMENSIONAMENTO EXCESSIVO (> 35%)"
+        if ex < 0:      diag = "❌ ÁREA INSUFICIENTE"
+        elif ex < 10:   diag = "⚠️ MARGEM ESTREITA (< 10%)"
+        elif ex <= 25:  diag = "✅ PROJETO ADEQUADO (10–25%)"
+        elif ex <= 35:  diag = "⚠️ LEVE SUPERDIMENSIONAMENTO (25–35%)"
+        else:           diag = "❌ SUPERDIMENSIONAMENTO EXCESSIVO (> 35%)"
 
         txt = f"""
 ╔══════════════════════════════════════════════╗
-║   RESULTADO — {metodo_label:<26} ║
+║   RESULTADO — {label:<26} ║
 ╚══════════════════════════════════════════════╝
 
-─── TEMPERATURAS ──────────────────────────
+─── TEMPERATURAS ─────────────────────────────
   Quente : {Thi:.2f} → {Tho:.2f} °C
   Frio   : {Tci:.2f} → {Tco:.2f} °C
 
-─── BALANÇO ENERGÉTICO ────────────────────
-  Q = {Q_W/1000:.4f} kW
-  LMTD = {dTlm:.4f} °C   F = {F:.4f}   (Np={Np})
-  Desvio = 0.00 %
+─── BALANÇO ENERGÉTICO ───────────────────────
+  Q     = {Q_W/1000:.4f} kW
+  LMTD  = {dTlm:.4f} °C
+  F     = {F:.4f}   (Np = {Np})
 
-─── PAREDE (iter: {mw['it']}, {'✓' if mw['conv'] else '⚠'}) ──────────
-  Tw casco = {mw['Twq']:.2f}°C   μw,s={mw['mwq']:.3e}   φs={mw['phq']:.4f}
-  Tw tubo  = {mw['Twf']:.2f}°C   μw,t={mw['mwf']:.3e}   φt={mw['phf']:.4f}
+─── VISCOSIDADE NA PAREDE (iter {mw['it']}) ───
+  {'✓ convergiu' if mw['conv'] else '⚠️ não convergiu'}
+  Tw casco = {mw['Twq']:.2f} °C   μw,s = {mw['mwq']:.3e}   φs = {mw['phq']:.4f}
+  Tw tubo  = {mw['Twf']:.2f} °C   μw,t = {mw['mwf']:.3e}   φt = {mw['phf']:.4f}
 
-─── CASCO ─────────────────────────────────
-  Gs = {casco['Gs']:.4f} kg/m²·s
+─── CASCO ────────────────────────────────────
+  Gs  = {casco['Gs']:.4f} kg/m²·s
   Res = {casco['Res']:.0f}   Prs = {casco['Prs']:.4f}
-  hs = {casco['hs']:.2f} W/m²·K
-  ΔPs = {dPs_kPa:.4f} kPa  [máx {dPs_max:.1f}] {dPs_ok}
+  hs  = {casco['hs']:.2f} W/m²·K
+  ΔPs = {dPs_kPa:.4f} kPa   [máx {dPs_max:.1f}]  {ok_ps}
 
-─── TUBOS ─────────────────────────────────
-  Gt = {tubos['Gt']:.4f} kg/m²·s   v = {tubos['vt']:.3f} m/s
+─── TUBOS ────────────────────────────────────
+  Gt  = {tubos['Gt']:.4f} kg/m²·s   v = {tubos['vt']:.3f} m/s
   Ret = {tubos['Ret']:.0f} [{tubos['reg']}]
-  ht = {tubos['ht']:.2f} W/m²·K
-  ΔPt = {dPt_kPa:.4f} kPa  [máx {dPt_max:.1f}] {dPt_ok}
+  ht  = {tubos['ht']:.2f} W/m²·K
+  ΔPt = {dPt_kPa:.4f} kPa   [máx {dPt_max:.1f}]  {ok_pt}
 
-─── GLOBAL ────────────────────────────────
-  R_ext  = {glob['Re']:.6f}
-  R_cond = {glob['Rc']:.6f}
-  R_int  = {glob['Ri']:.6f}
-  R_foul = {glob['Rf']:.6f}
-  U = {glob['U']:.2f} W/m²·K
+─── COEFICIENTE GLOBAL ───────────────────────
+  R_ext  = {glob['Re']:.6f}   R_cond = {glob['Rc']:.6f}
+  R_int  = {glob['Ri']:.6f}   R_foul = {glob['Rf']:.6f}
+  U      = {glob['U']:.2f} W/m²·K
 
-─── DIMENSIONAMENTO ───────────────────────
-  Área calc. = {glob['A']:.4f} m²
-  Área inst. = {Ai:.4f} m²
-  Excesso    = {ex:.1f} %
+─── DIMENSIONAMENTO ──────────────────────────
+  A calculada = {glob['A']:.4f} m²
+  A instalada = {Ai:.4f} m²
+  Excesso     = {ex:.1f} %
 
-─── DIAGNÓSTICO ───────────────────────────
+─── DIAGNÓSTICO ──────────────────────────────
   {diag}
 """
         if metodo == "bd":
-            txt += f"\n─── FATORES J ─────────────────────────\n"
-            txt += f"  Jc={fat['Jc']:.4f}  Jl={fat['Jl']:.4f}  Jb={fat['Jb']:.4f}\n"
-            txt += f"  Js={fat['Js']:.4f}  Jr={fat['Jr']:.4f}  ∏J={PJ:.4f}\n"
+            txt += (f"\n─── FATORES J ────────────────────────────────\n"
+                    f"  Jc = {fat['Jc']:.4f}   Jl = {fat['Jl']:.4f}   Jb = {fat['Jb']:.4f}\n"
+                    f"  Js = {fat['Js']:.4f}   Jr = {fat['Jr']:.4f}\n"
+                    f"  ∏J = {PJ:.4f}\n")
 
         st.session_state[f"{prefixo}_resultado"] = txt
 
-        # ─── Memorial ───
-        memo = f"""
-═══════════════════════════════════════════════════════════
-  MEMORIAL DE CÁLCULO — {metodo_label}
-═══════════════════════════════════════════════════════════
+        # Memorial
+        memo = f"""════════════════════════════════════════════════════════════
+  MEMORIAL DE CÁLCULO — {label}
+════════════════════════════════════════════════════════════
 
 [ETAPA 1] BALANÇO DE ENERGIA
   Q = ṁ · cp · |ΔT|
-  Q_quente = {ms:.4f} × {cp_s:.1f} × ({Thi:.2f} - {Tho:.2f}) = {Q_W/1000:.4f} kW
-  Q_frio   = {mt:.4f} × {cp_t:.1f} × ({Tco:.2f} - {Tci:.2f}) = {Q_W/1000:.4f} kW
+  Q_quente = {ms:.4f} × {cp_s:.1f} × ({Thi:.2f} − {Tho:.2f}) = {Q_W/1000:.4f} kW
+  Q_frio   = {mt:.4f} × {cp_t:.1f} × ({Tco:.2f} − {Tci:.2f}) = {Q_W/1000:.4f} kW
 
 [ETAPA 2] LMTD E FATOR F
-  ΔT1 = {Thi:.2f} - {Tco:.2f} = {Thi-Tco:.4f} °C
-  ΔT2 = {Tho:.2f} - {Tci:.2f} = {Tho-Tci:.4f} °C
+  ΔT1 = {Thi:.2f} − {Tco:.2f} = {Thi-Tco:.4f} °C
+  ΔT2 = {Tho:.2f} − {Tci:.2f} = {Tho-Tci:.4f} °C
   LMTD = {dTlm:.4f} °C
   F = {F:.4f}  (Np = {Np})
 
 [ETAPA 3] GEOMETRIA
-  di = d_o - 2e = {d:.5f} - 2×{e_p:.5f} = {di:.5f} m
-  Nb = floor(Lta/Lbc) - 1 = {Nb}
-  Dhs/Atc = {geo0['Dhs']*1000:.2f} mm / {geo0['Atc']*1e4:.4f} cm²
+  di = d_o − 2e = {d:.5f} − 2×{e_p:.5f} = {di:.5f} m
+  Nb = floor(Lta/Lbc) − 1 = {Nb}
 
-[ETAPA 4] COEFICIENTE DE PELÍCULA — CASCO
-  Gs = ṁₛ/Atc = {casco['Gs']:.4f} kg/m²·s
-  Res = {casco['Res']:.1f}   Prs = {casco['Prs']:.4f}
+[ETAPA 4] COEFICIENTE — CASCO
+  Gs = {casco['Gs']:.4f} kg/m²·s   Res = {casco['Res']:.1f}
   hs = {casco['hs']:.2f} W/m²·K
 
-[ETAPA 5] COEFICIENTE DE PELÍCULA — TUBOS
-  Ret = {tubos['Ret']:.1f}  [{tubos['reg']}]
-  Nut = {tubos['Nut']:.4f}
+[ETAPA 5] COEFICIENTE — TUBOS
+  Ret = {tubos['Ret']:.1f}  [{tubos['reg']}]   Nut = {tubos['Nut']:.4f}
   ht = {tubos['ht']:.2f} W/m²·K
 
-[ETAPA 6] TEMPERATURA NA PAREDE (iterativo)
-  T_w,s = {mw['Twq']:.2f} °C → μw,s = {mw['mwq']:.4e} Pa·s → φs = {mw['phq']:.4f}
-  T_w,t = {mw['Twf']:.2f} °C → μw,t = {mw['mwf']:.4e} Pa·s → φt = {mw['phf']:.4f}
+[ETAPA 6] TEMPERATURA NA PAREDE (iter {mw['it']}×)
+  Tw,s = {mw['Twq']:.2f}°C → μw,s = {mw['mwq']:.4e} → φs = {mw['phq']:.4f}
+  Tw,t = {mw['Twf']:.2f}°C → μw,t = {mw['mwf']:.4e} → φt = {mw['phf']:.4f}
 
 [ETAPA 7] QUEDA DE PRESSÃO
-  ΔPs = {dPs_kPa:.4f} kPa
-  ΔPt = {dPt_kPa:.4f} kPa
+  ΔPs = {dPs_kPa:.4f} kPa   ΔPt = {dPt_kPa:.4f} kPa
 
 [ETAPA 8] COEFICIENTE GLOBAL
-  R_ext  = {glob['Re']:.6f} m²·K/W
-  R_cond = {glob['Rc']:.6f} m²·K/W
-  R_int  = {glob['Ri']:.6f} m²·K/W
-  R_foul = {glob['Rf']:.6f} m²·K/W
+  R_ext={glob['Re']:.6f}  R_cond={glob['Rc']:.6f}
+  R_int={glob['Ri']:.6f}  R_foul={glob['Rf']:.6f}
   U = {glob['U']:.2f} W/m²·K
 
 [ETAPA 9] ÁREA DE TROCA
   A = Q / (U · LMTD · F)
-  A = {Q_W:.2f} / ({glob['U']:.2f} × {dTlm:.4f} × {F:.4f})
-  A = {glob['A']:.4f} m²
-  A instalada = Nt·π·d·Lta = {Ai:.4f} m²
-  Excesso = {ex:.1f} %
+  A = {Q_W:.2f} / ({glob['U']:.2f} × {dTlm:.4f} × {F:.4f}) = {glob['A']:.4f} m²
+  Instalada = {Ai:.4f} m²   Excesso = {ex:.1f} %
 
-═══════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════
   Ref: Kern(1950) · Kakaç&Liu(2002) · Thulukkanam(2013) · TEMA
-═══════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════
 """
         st.session_state[f"{prefixo}_memorial"] = memo
-        st.success("✅ Cálculo concluído! Veja os resultados ao lado →")
+        st.success("✅ Cálculo concluído! Veja os resultados na coluna direita.")
         st.rerun()
 
+    except ValueError as e:
+        st.error(f"⚠️ {e}")
     except Exception as e:
         st.error(f"Erro no cálculo: {e}")
-        import traceback
-        st.code(traceback.format_exc())
 
 # ═════════════════════════════════════════════════════════════════
-#  EXECUTA AS DUAS ABAS
+#  EXECUTA AS ABAS
 # ═════════════════════════════════════════════════════════════════
 with tab_k:
     render_aba("k", "#00C2FF", "kern")
