@@ -1151,7 +1151,7 @@ def render_aba(prefixo, metodo):
                 _executar_calculo(prefixo, metodo)
 
     # ══════════ COLUNA DIREITA ══════════
-        with col_r:
+    with col_r:
         st.markdown(f"### 📊 Resultados — {metodo.upper()}")
         t_etapa, t_dicas, t_resumo, t_memo = st.tabs(
             ["🧭 Nesta Etapa", "💡 Dicas", "📊 Resumo", "📘 Memorial"])
@@ -1177,6 +1177,7 @@ def render_aba(prefixo, metodo):
                             unsafe_allow_html=True)
             else:
                 st.info("O memorial aparece após CALCULAR.")
+        
 
 # ═════════════════════════════════════════════════════════════════
 #  EXECUTAR CÁLCULO (com validação completa)
