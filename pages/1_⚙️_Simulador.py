@@ -412,89 +412,96 @@ def propriedades_fluido(nome, T_C, P_Pa=101325.0):
 #  NESTA ETAPA — com LaTeX (corrige fórmulas estranhas)
 # ═════════════════════════════════════════════════════════════════
 def render_nesta_etapa(pag):
-    """Renderiza a aba Nesta Etapa com fórmulas em LaTeX."""
+    """Conteúdo teórico da aba 'Nesta Etapa' — texto rico + LaTeX."""
     if pag == 0:
-        st.markdown("### 🌡️ Temperaturas e Objetivo")
+        st.markdown("## 🌡️ Temperaturas e Objetivo")
+        st.markdown("Nesta etapa, você define as **temperaturas de entrada** dos "
+                    "dois fluidos e escolhe **qual temperatura de saída** o "
+                    "programa deve calcular.")
+        st.markdown("### 📐 Fórmulas")
         st.markdown("**Balanço de energia (1ª Lei da Termodinâmica):**")
         st.latex(r"Q = \dot{m} \cdot c_p \cdot |\Delta T|")
         st.markdown("**Igualdade dos calores trocados:**")
         st.latex(r"Q_{\text{quente}} = Q_{\text{frio}}")
         st.markdown("**Diferença de temperatura média logarítmica (LMTD):**")
         st.latex(r"\text{LMTD} = \frac{\Delta T_1 - \Delta T_2}{\ln(\Delta T_1 / \Delta T_2)}")
-        st.markdown(r"onde $\Delta T_1 = T_{h,i} - T_{c,o}$  e  $\Delta T_2 = T_{h,o} - T_{c,i}$")
-        st.markdown("---")
-        st.markdown("**Impacto no projeto:**")
-        st.markdown("- Essas temperaturas definem o $Q$ total do trocador.\n"
-                    "- Quanto **menor** o $\Delta T$, **menor** a força motriz térmica → "
-                    "para o mesmo $Q$, exige **mais área** de troca.\n"
-                    "- Se a $T$ de saída violar a 2ª Lei, o programa avisa.")
-        st.markdown("---")
-        st.markdown("**Glossário:**")
-        st.markdown("- $T_{h,i}, T_{h,o}$ — entrada/saída do fluido quente (°C)\n"
-                    "- $T_{c,i}, T_{c,o}$ — entrada/saída do fluido frio (°C)\n"
-                    "- $\\dot{m}$ — vazão mássica (kg/s)\n"
-                    "- $c_p$ — calor específico (J/kg·K)")
-
-        # Correção: explicação do chute
-        st.markdown("---")
-        st.markdown("### ⚠️ Sobre a temperatura de referência")
-        st.markdown(
-            "<div class='card-warn'>"
-            "As propriedades dos fluidos (ρ, μ, cp, k) variam com a temperatura. "
-            "O programa precisa de uma <b>T de referência</b> para calcular. "
-            "Como você ainda não sabe a temperatura média exata (ela só aparece "
-            "depois que o programa calcula T<sub>h,o</sub> e T<sub>c,o</sub>), "
-            "use uma <b>estimativa inicial</b>: por exemplo, a própria temperatura "
-            "de entrada.<br><br>"
-            "<b>Fluxo iterativo:</b><br>"
-            "1) Insira uma T-chute (ex.: T de entrada)<br>"
-            "2) Clique em Buscar propriedades<br>"
-            "3) Vá até a página 4 e clique em ▶ CALCULAR<br>"
-            "4) Volte para a página 2 e clique em <b>↺ Usar T média</b> — o programa "
-            "refina as propriedades com a T<sub>média</sub> real que ele mesmo calculou<br>"
-            "5) Recalcule (normalmente converge em 1–2 rodadas)"
-            "</div>", unsafe_allow_html=True)
+        st.markdown(r"onde $\Delta T_1 = T_{h,i} - T_{c,o}$ e $\Delta T_2 = T_{h,o} - T_{c,i}$")
+        st.markdown("### 💥 Impacto no projeto")
+        st.markdown("""
+- Essas temperaturas definem o **Q TOTAL** que o trocador precisa trocar — todo o resto do projeto (área, vazões, custo) escala com esse valor.
+- Quanto **menor** o ΔT entre os fluidos, **menor** a força motriz térmica (LMTD). Para o mesmo Q, isso exige **mais área** de troca.
+- Se a T de saída pedida for fisicamente impossível (violar a 2ª Lei), o programa avisa em vermelho.
+""")
+        st.markdown("### 📖 Glossário")
+        st.markdown(r"""
+- $T_{h,i}, T_{h,o}$ — entrada/saída do fluido **quente** (°C)
+- $T_{c,i}, T_{c,o}$ — entrada/saída do fluido **frio** (°C)
+- $Q$ — taxa de calor trocado (W)
+- $\dot{m}$ — vazão mássica (kg/s)
+- $c_p$ — calor específico (J/kg·K)
+- $\Delta T$ — diferença de temperatura (°C)
+- LMTD — diferença de temperatura média logarítmica
+""")
 
     elif pag == 1:
-        st.markdown("### 🧪 Fluidos e Vazões")
-        st.markdown("**Número de Reynolds (regime de escoamento):**")
+        st.markdown("## 🧪 Fluidos e Vazões")
+        st.markdown("Nesta etapa, você define as 4 propriedades físicas dos fluidos "
+                    "(ρ, μ, cp, k) avaliadas na temperatura média, mais as vazões "
+                    "mássicas.")
+        st.markdown("### 📐 Fórmulas")
+        st.markdown("**Número de Reynolds:**")
         st.latex(r"Re = \frac{D \cdot G}{\mu} \qquad \text{com } G = \frac{\dot{m}}{A}")
-        st.markdown("**Número de Prandtl (difusão de momentum / calor):**")
+        st.markdown("**Número de Prandtl:**")
         st.latex(r"Pr = \frac{\mu \cdot c_p}{k}")
         st.markdown("**Correção de viscosidade na parede:**")
-        st.latex(r"\phi = \left(\frac{\mu_{\text{bulk}}}{\mu_w}\right)^{0{,}14} \qquad h_{\text{real}} = h_{\text{ideal}} \cdot \phi")
-        st.markdown("---")
-        st.markdown("**No casco (Kern):**")
+        st.latex(r"\phi = \left(\frac{\mu_{\text{bulk}}}{\mu_w}\right)^{0{,}14}"
+                 r" \qquad h_{\text{real}} = h_{\text{ideal}} \cdot \phi")
+        st.markdown("### 🔵 Correlações de h")
+        st.markdown("**Casco (Kern):**")
         st.latex(r"h_s = 0{,}36 \cdot \frac{k}{D_{hs}} \cdot Re^{0{,}55} \cdot Pr^{1/3}")
-        st.markdown("**Nos tubos (Sieder-Tate / Gnielinski):**")
+        st.markdown("**Tubos (Sieder-Tate / Gnielinski):**")
         st.latex(r"Nu = f(Re, Pr) \quad \Rightarrow \quad h = \frac{Nu \cdot k}{d_i}")
-        st.markdown("---")
-        st.markdown("### 🧱 Temperatura da Parede (iterativo)")
-        st.markdown(
-            "<div class='card-info'>"
-            "<b>Por que importa:</b> a viscosidade dos líquidos muda perto da parede "
-            "(mais fria ou quente), alterando o perfil de velocidade e o coeficiente "
-            "h. Ignorar isso <b>superestima h</b> em até 20–30%.<br><br>"
-            "<b>Algoritmo:</b><br>"
-            "1. Chutar $T_w = (T_q + T_f)/2$<br>"
-            "2. Calcular $\\mu$ em $T_w$ (Andrade para líquidos)<br>"
-            "3. Recalcular $h$ com $\\phi = (\\mu_{\\text{bulk}}/\\mu_w)^{0{,}14}$<br>"
-            "4. Recalcular $T_w$ pelo circuito de resistências<br>"
-            "5. Repetir até $|\\Delta T_w| < 0{,}1$ °C (converge em 2–4 iter)"
-            "</div>", unsafe_allow_html=True)
+        st.markdown("### 🧱 Temperatura da parede (iterativo)")
+        st.markdown(r"""
+A viscosidade dos líquidos muda perto da parede, distorcendo o perfil de
+velocidade e alterando o coeficiente h. Ignorar isso **superestima h** em
+até 20–30%.
+
+**Algoritmo do programa:**
+1. Chutar $T_w = (T_q + T_f)/2$
+2. Calcular $\mu_w$ em $T_w$ (equação de Andrade para líquidos)
+3. Recalcular $h$ com $\phi = (\mu_{\text{bulk}}/\mu_w)^{0{,}14}$
+4. Recalcular $T_w$ pelo circuito de resistências
+5. Repetir até $|\Delta T_w| < 0{,}1$ °C (2–4 iterações)
+""")
+        st.markdown("### 💥 Impacto no projeto")
+        st.markdown(r"""
+- Fluidos **mais viscosos** (μ alto) → Re menor → regime laminar → h menor → **mais área** necessária.
+- $c_p$ alto no fluido de menor vazão limita quanto ele pode aquecer/resfriar.
+- A viscosidade $\mu$ que você informa é do fluido **bulk** — o programa calcula sozinho a viscosidade **junto à parede**.
+""")
 
     elif pag == 2:
-        st.markdown("### 📐 Geometria do Trocador")
+        st.markdown("## 📐 Geometria do Trocador")
+        st.markdown("A geometria define a **área disponível de troca** e como os "
+                    "fluidos escoam dentro do trocador.")
+        st.markdown("### 📐 Fórmulas")
         st.markdown("**Diâmetro interno do tubo:**")
         st.latex(r"d_i = d_o - 2e")
         st.markdown("**Número de chicanas:**")
         st.latex(r"N_b = \lfloor L_{ta} / L_{bc} \rfloor - 1")
+        st.markdown("**Área instalada:**")
+        st.latex(r"A_{\text{inst}} = N_t \cdot \pi \cdot d_o \cdot L_{ta}")
         st.markdown("**Fator de correção da LMTD (multipasse):**")
         st.latex(r"F = f(P, R, N_p) \qquad N_p = 1 \Rightarrow F = 1{,}0")
-        st.markdown("---")
-        st.markdown("**Área disponível:**")
-        st.latex(r"A_{\text{inst}} = N_t \cdot \pi \cdot d_o \cdot L_{ta}")
-        st.markdown("**Tabela de referência Nₜ × Dₛ (tubo 3/4\", θ=30°):**")
+        st.markdown("### 💥 Impacto no projeto")
+        st.markdown(r"""
+- Chicanas mais próximas ($L_{bc}$ menor) → mais turbulência → $h$ maior, **mas também** mais $\Delta P$. É sempre um trade-off.
+- $D_s$ e $L_{tp}$ definem quantos tubos cabem e a velocidade no casco.
+- $\theta = 30°$ empacota mais tubos que $\theta = 90°$.
+- $N_p > 1$ aumenta velocidade nos tubos (mais $h$) mas reduz $F$.
+""")
+        st.markdown("### 📊 Tabela Nₜ × Dₛ (tubo 3/4\", θ=30°, 1 passe)")
         st.markdown("""
 | Dₛ (m) | Dₛ (pol.) | Nₜ aprox. |
 |:---:|:---:|:---:|
@@ -507,27 +514,202 @@ def render_nesta_etapa(pag):
 """)
 
     else:
-        st.markdown("### ⚙️ Limites, Fase, Fouling e Cálculo")
-        st.markdown("**Queda de pressão (casco, Kern):**")
-        st.latex(r"\Delta P_s = \frac{f_s \cdot G_s^2 \cdot (N_b+1) \cdot D_s}{2 \cdot \rho_s \cdot D_{hs} \cdot \phi_s}")
-        st.markdown("**Queda de pressão (tubos):**")
-        st.latex(r"\Delta P_t = f_t \cdot \frac{L_{ta}}{d_i} \cdot \frac{G_t^2}{2\rho_t} \cdot N_p + \Delta P_{\text{retorno}}")
+        st.markdown("## ⚙️ Limites, Fase, Fouling e Cálculo")
+        st.markdown("Última etapa: limites operacionais, mudança de fase e fouling.")
+        st.markdown("### 📐 Fórmulas")
+        st.markdown("**Queda de pressão no casco (Kern):**")
+        st.latex(r"\Delta P_s = \frac{f_s \cdot G_s^2 \cdot (N_b+1) \cdot D_s}"
+                 r"{2 \cdot \rho_s \cdot D_{hs} \cdot \phi_s}")
+        st.markdown("**Queda de pressão nos tubos:**")
+        st.latex(r"\Delta P_t = f_t \cdot \frac{L_{ta}}{d_i} \cdot "
+                 r"\frac{G_t^2}{2\rho_t} \cdot N_p + \Delta P_{\text{retorno}}")
         st.markdown("**Resistência de fouling:**")
-        st.latex(r"R_{\text{foul}} = R_{f,\text{ext}} + \frac{d_o}{d_i} \cdot R_{f,\text{int}}")
+        st.latex(r"R_{\text{foul}} = R_{f,\text{ext}} + "
+                 r"\frac{d_o}{d_i} \cdot R_{f,\text{int}}")
         st.markdown("**Coeficiente global e área:**")
         st.latex(r"U = \frac{1}{R_{\text{ext}} + R_{\text{cond}} + R_{\text{int}} + R_{\text{foul}}}")
         st.latex(r"A = \frac{Q}{U \cdot \text{LMTD} \cdot F}")
-        st.markdown("---")
         st.markdown("**Mudança de fase:**")
         st.latex(r"Q_{\text{total}} = Q_{\text{sensível}} + \dot{m} \cdot \lambda \cdot x")
-        st.markdown("---")
-        st.markdown("**Faixas de excesso de área (TEMA):**")
+        st.markdown("### 💥 Impacto no projeto")
+        st.markdown(r"""
+- Se $\Delta P$ calculado > limite definido, o projeto é **reprovado**.
+- Fouling é a maior fonte de incerteza em projetos reais: quanto maior $R_f$, menor $U$ → maior a área.
+- Trocadores são superdimensionados (excesso de área) para compensar o fouling ao longo da vida útil.
+""")
+        st.markdown("### 📊 Faixas de excesso de área (TEMA)")
+        st.markdown(r"""
+- $< 0\%$ → ❌ Área insuficiente
+- $0$–$10\%$ → ⚠️ Margem estreita
+- $10$–$25\%$ → ✅ **Ideal**
+- $25$–$35\%$ → ⚠️ Leve superdimensionamento
+- $> 35\%$ → ❌ Superdimensionamento excessivo
+""")
+def render_dicas(pag, metodo="kern"):
+    """Aba 'Dicas' — guia prático por etapa."""
+    if pag == 0:
+        st.markdown("## 💡 Dicas — Temperaturas e Objetivo")
+        st.markdown("### 🎯 Como escolher as temperaturas de entrada?")
         st.markdown("""
-- $<0\\%$ → ❌ Área insuficiente
-- $0$–$10\\%$ → ⚠️ Margem estreita
-- $10$–$25\\%$ → ✅ **Ideal**
-- $25$–$35\\%$ → ⚠️ Leve superdimensionamento
-- $>35\\%$ → ❌ Superdimensionamento excessivo
+**Se você tem um processo real:**
+- Use as temperaturas medidas ou de projeto da planta
+- Geralmente vêm do balanço global de massa/energia
+
+**Se você está estudando e não tem dados:**
+""")
+        st.markdown("""
+| Aplicação típica | T quente (°C) | T frio (°C) |
+|:---|:---:|:---:|
+| Resfriamento de água | 80–100 → 40–60 | 20–30 → 35–45 |
+| Trocador de óleo | 120–180 → 60–90 | 25–35 → 50–80 |
+| Condensador de vapor | 100–150 (vapor) → 100 | 20–30 → 40–60 |
+| Água de resfriamento | 30–40 → 25–30 | 15–25 → 25–30 |
+| Recuperador de calor | 150–250 → 80–120 | 30–50 → 70–100 |
+""")
+        st.markdown("### ⚠️ Escolhendo o objetivo")
+        st.markdown("""
+Você informa **uma** temperatura de saída (a que você tem ou quer atingir).
+O programa calcula a outra pelo balanço.
+
+- **Definir Th,o** → você sabe quanto o fluido quente resfria
+- **Definir Tc,o** → você sabe quanto o fluido frio aquece
+""")
+        st.markdown("### 🚨 Erros comuns")
+        st.markdown(r"""
+- $T_{c,o} < T_{h,i}$ (o frio nunca sai mais quente que o quente entrou)
+- $T_{h,o} > T_{c,i}$ (o quente nunca sai mais frio que o frio entrou)
+- ΔT muito pequeno (< 10 °C) → LMTD baixa → área enorme
+""")
+
+    elif pag == 1:
+        st.markdown("## 💡 Dicas — Fluidos e Vazões")
+        st.markdown("### 📚 Onde encontrar as propriedades?")
+        st.markdown("""
+**1. Use o banco integrado (mais rápido):**
+- Escolha o fluido no combobox
+- Insira a temperatura
+- Clique em 🔎 Buscar propriedades
+
+**2. CoolProp (se instalado):**
+- 42 fluidos extras: refrigerantes, hidrocarbonetos, criogênicos
+- Botão 💡 P sugere a pressão de saturação
+
+**3. Tabelas impressas:**
+- **Incropera** — Tabelas A.4 a A.8 (ar, água, óleos)
+- **Perry's** — Seção 2 (Physical and Chemical Data)
+- **NIST WebBook** — online, gratuito
+""")
+        st.markdown("### 🎯 Valores típicos para sanidade")
+        st.markdown("""
+| Fluido | ρ (kg/m³) | μ (mPa·s) | cp (kJ/kg·K) | k (W/m·K) |
+|:---|:---:|:---:|:---:|:---:|
+| Água (20 °C) | 998 | 1,00 | 4,18 | 0,60 |
+| Ar (20 °C) | 1,20 | 0,018 | 1,005 | 0,026 |
+| Etanol (20 °C) | 789 | 1,20 | 2,44 | 0,155 |
+| Óleo SAE 30 (20 °C) | 890 | ~200 | 1,90 | 0,145 |
+| Glicerina (20 °C) | 1260 | ~1500 | 2,43 | 0,285 |
+| Amônia líquida (–20 °C) | 665 | 0,26 | 4,50 | 0,54 |
+""")
+        st.markdown("### ⚙️ Escolhendo vazões típicas")
+        st.markdown("""
+**Regras práticas para o casco:**
+- Líquidos: velocidade 0,3–1,0 m/s
+- Gases: 10–30 m/s
+- Vapor: 15–60 m/s
+
+**Para os tubos:**
+- Líquidos: 1,0–3,0 m/s
+- Gases: 10–30 m/s
+- Água de resfriamento: 1,5–2,5 m/s
+
+**Fórmula da vazão a partir da velocidade:**
+""")
+        st.latex(r"\dot{m} = \rho \cdot v \cdot A_{\text{escoamento}}")
+
+    elif pag == 2:
+        st.markdown("## 💡 Dicas — Geometria")
+        st.markdown("### 📏 Tamanhos comerciais de tubo (TEMA)")
+        st.markdown("""
+| Polegada | d_o (m) | BWG | e (m) | di (m) |
+|:---:|:---:|:---:|:---:|:---:|
+| 1/2\" | 0,01270 | 16 | 0,00165 | 0,00940 |
+| 5/8\" | 0,01588 | 16 | 0,00165 | 0,01258 |
+| 3/4\" | 0,01905 | 14 | 0,00211 | 0,01483 |
+| 3/4\" | 0,01905 | 16 | 0,00165 | 0,01575 |
+| 1\" | 0,02540 | 14 | 0,00211 | 0,02118 |
+| 1\" | 0,02540 | 16 | 0,00165 | 0,02210 |
+| 1¼\" | 0,03175 | 16 | 0,00165 | 0,02845 |
+| 1½\" | 0,03810 | 16 | 0,00165 | 0,03480 |
+""")
+        st.markdown("### 🎯 Como escolher cada parâmetro")
+        st.markdown(r"""
+**Comprimento $L_{ta}$ (comercial):**
+1,83 / 2,44 / 3,66 / 4,88 / 6,10 m
+
+**Passo $L_{tp}$:**
+$L_{tp} \geq 1{,}25 \cdot d_o$ (mínimo TEMA)
+
+**Espaçamento de chicanas $L_{bc}$:**
+- Faixa válida: $0{,}2 \cdot D_s$ a $1{,}0 \cdot D_s$
+- Recomendado: $0{,}3$ a $0{,}5 \cdot D_s$
+
+**Diâmetro do casco $D_s$:**
+- Até 300 mm: tubos 1/2\" ou 3/4\"
+- 300–600 mm: tubos 3/4\" ou 1\"
+- 600–1500 mm: tubos 1\" a 1¼\"
+""")
+        st.markdown("### 🚀 Caminho rápido")
+        st.markdown("""
+**Não sabe por onde começar?**
+
+1. Preencha as páginas 1 e 2 (temperaturas e fluidos)
+2. Volte aqui e clique em **🔮 Estimar geometria**
+3. O programa deriva tudo: d_o, Nt, Ds, Lta, Ltp, Lbc
+4. Ajuste se quiser (opcional)
+""")
+
+    else:
+        st.markdown("## 💡 Dicas — Limites, Fase e Fouling")
+        st.markdown("### ⚡ Quedas de pressão típicas")
+        st.markdown("""
+| Tipo de serviço | ΔPs máx (kPa) | ΔPt máx (kPa) | Referência |
+|:---|:---:|:---:|:---|
+| Líquido geral | 35 | 70 | Kern / TEMA |
+| Bomba de baixa pressão | 20 | 35 | Thulukkanam |
+| Líquido viscoso | 50 | 100 | Kakaç & Liu |
+| Gás baixa pressão | 7 | 14 | Perry's |
+| Vapor condensando | 14 | 35 | Thulukkanam |
+| Gás alta pressão | 35 | 70 | Kakaç & Liu |
+| Criogênico | 14 | 35 | Perry's |
+""")
+        st.markdown("### 🔧 Fouling (TEMA RGP-T-2.4)")
+        st.markdown("""
+| Serviço | Rf (m²·K/W) |
+|:---|:---:|
+| Água tratada | 0,000176 |
+| Água não tratada | 0,000352 |
+| Vapor d'água | 0,0000882 |
+| Hidrocarbonetos leves | 0,000176 |
+| Hidrocarbonetos pesados | 0,000528 |
+| Gases industriais | 0,000176 |
+""")
+        st.markdown("### 💧 Calores latentes comuns")
+        st.markdown("""
+| Fluido | λ (kJ/kg) | T_ebulição @ 1 atm |
+|:---|:---:|:---:|
+| Água | 2257 | 100 °C |
+| Amônia | 1371 | –33 °C |
+| R134a | 217 | –26 °C |
+| R410A | 275 | –52 °C |
+| Etanol | 846 | 78 °C |
+| Metanol | 1100 | 65 °C |
+""")
+        st.markdown("### ⚠️ Quando ativar mudança de fase?")
+        st.markdown(r"""
+- **Condensação** — se o fluido quente muda de vapor → líquido
+- **Vaporização** — se o fluido frio muda de líquido → vapor
+- Use $x = 1$ para condensação/vaporização total
+- Use $x = 0{,}5$ se apenas metade da corrente muda de fase
 """)
 
 # ═════════════════════════════════════════════════════════════════
@@ -969,13 +1151,16 @@ def render_aba(prefixo, metodo):
                 _executar_calculo(prefixo, metodo)
 
     # ══════════ COLUNA DIREITA ══════════
-    with col_r:
+        with col_r:
         st.markdown(f"### 📊 Resultados — {metodo.upper()}")
-        t_etapa, t_resumo, t_memo = st.tabs(
-            ["🧭 Nesta Etapa", "📊 Resumo", "📘 Memorial"])
+        t_etapa, t_dicas, t_resumo, t_memo = st.tabs(
+            ["🧭 Nesta Etapa", "💡 Dicas", "📊 Resumo", "📘 Memorial"])
 
         with t_etapa:
             render_nesta_etapa(pag)
+
+        with t_dicas:
+            render_dicas(pag, metodo)
 
         with t_resumo:
             resultado = st.session_state.get(f"{prefixo}_resultado")
