@@ -1,1 +1,2 @@
 streamlit>=1.32.0
+CoolProp>=6.6
