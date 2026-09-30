@@ -6,10 +6,9 @@ import streamlit as st
 from pathlib import Path
 
 st.set_page_config(
-    page_title="Simulador Casco-e-Tubo",
-    page_icon="⚙️",
+    page_title="Simulador — Casco-e-Tubo",
+    page_icon="assets/ifmg_icone.png",   # ← troca o ⚙️ pelo logo
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 from PIL import Image
 from pathlib import Path
