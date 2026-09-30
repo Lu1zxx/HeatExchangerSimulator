@@ -14,9 +14,27 @@ except ImportError:
     _CP = None; COOLPROP_DISPONIVEL = False; COOLPROP_VERSAO = None
 
 # ═════════════════════════════════════════════════════════════════
-st.set_page_config(page_title="Simulador — Casco-e-Tubo",
-                   page_icon="⚙️", layout="wide",
-                   initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="Simulador — Casco-e-Tubo",
+    page_icon="assets/ifmg_icone.png",   # ← troca o ⚙️ pelo logo
+    layout="wide",
+)
+from PIL import Image
+from pathlib import Path
+
+# Logo IFMG na barra lateral
+_logo_path = Path(__file__).parent / "assets" / "ifmg_logo_transparente.png"
+if not _logo_path.exists():
+    _logo_path = Path(__file__).parent.parent / "assets" / "ifmg_logo_transparente.png"
+
+if _logo_path.exists():
+    with st.sidebar:
+        st.image(str(_logo_path), width=200)
+        st.markdown(
+            "<div style='font-size:11px; color:#6A90B0; text-align:center; "
+            "padding-bottom:12px;'>Instituto Federal<br>Norte de Minas Gerais</div>",
+            unsafe_allow_html=True)
+        st.markdown("---")
 
 st.markdown("""
 <style>
@@ -47,22 +65,6 @@ h1,h2,h3{color:#DFF0FF!important}
 .formula h4{color:#C084FC;margin:0 0 10px 0;font-size:14px}
 .formula .expl{color:#8FB0CF;font-size:12px;margin-top:8px;line-height:1.6}
 </style>""", unsafe_allow_html=True)
-from PIL import Image
-from pathlib import Path
-
-# Logo IFMG na barra lateral
-_logo_path = Path(__file__).parent / "assets" / "ifmg_logo_transparente.png"
-if not _logo_path.exists():
-    _logo_path = Path(__file__).parent.parent / "assets" / "ifmg_logo_transparente.png"
-
-if _logo_path.exists():
-    with st.sidebar:
-        st.image(str(_logo_path), width=200)
-        st.markdown(
-            "<div style='font-size:11px; color:#6A90B0; text-align:center; "
-            "padding-bottom:12px;'>Instituto Federal<br>Norte de Minas Gerais</div>",
-            unsafe_allow_html=True)
-        st.markdown("---")
 
 # ═════════════════════════════════════════════════════════════════
 #  DADOS DE REFERÊNCIA
