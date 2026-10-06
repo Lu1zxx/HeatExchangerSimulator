@@ -5,22 +5,9 @@ Página inicial do projeto. O simulador está em pages/.
 import streamlit as st
 from pathlib import Path
 
-st.set_page_config(
-    page_title="Simulador — Casco-e-Tubo",
-    page_icon="assets/icone.png",   # ← troca o ⚙️ pelo logo
-    layout="wide",
-)
-from PIL import Image
-from pathlib import Path
-
-# Logo IFMG na barra lateral
-_logo_path = Path(__file__).parent / "assets" / "logo.png"
-if not _logo_path.exists():
-    _logo_path = Path(__file__).parent.parent / "assets" / "logo.png"
-
-if _logo_path.exists():
-    with st.sidebar:
-        st.image(str(_logo_path), width=200)
+st.set_page_config(page_title="Simulador — Casco-e-Tubo",
+                   page_icon="⚙️", layout="wide",
+                   initial_sidebar_state="expanded")
     
 
 # ── CSS para alinhar com o tema escuro ────────────────────────────
