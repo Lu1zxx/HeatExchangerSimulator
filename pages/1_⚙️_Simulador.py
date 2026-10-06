@@ -16,16 +16,16 @@ except ImportError:
 # ═════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="Simulador — Casco-e-Tubo",
-    page_icon="assets/ifmg_icone.png",   # ← troca o ⚙️ pelo logo
+    page_icon="assets/icone.png",   # ← troca o ⚙️ pelo logo
     layout="wide",
 )
 from PIL import Image
 from pathlib import Path
 
 # Logo IFMG na barra lateral
-_logo_path = Path(__file__).parent / "assets" / "ifmg_logo_transparente.png"
+_logo_path = Path(__file__).parent / "assets" / "logo.png"
 if not _logo_path.exists():
-    _logo_path = Path(__file__).parent.parent / "assets" / "ifmg_logo_transparente.png"
+    _logo_path = Path(__file__).parent.parent / "assets" / "logo.png"
 
 if _logo_path.exists():
     with st.sidebar:
