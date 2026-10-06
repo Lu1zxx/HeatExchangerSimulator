@@ -26,6 +26,10 @@ _logo_path = Path(__file__).parent / "assets" / "logo.png"
 if not _logo_path.exists():
     _logo_path = Path(__file__).parent.parent / "assets" / "logo.png"
 
+if _logo_path.exists():
+    with st.sidebar:
+        st.image(str(_logo_path), width=200)
+
 
 st.markdown("""
 <style>
