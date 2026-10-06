@@ -761,6 +761,130 @@ $L_{tp} \geq 1{,}25 \cdot d_o$ (mínimo TEMA)
 """)
 
 # ═════════════════════════════════════════════════════════════════
+#  DIAGNÓSTICO DETALHADO — Kern e Bell-Delaware
+#  Portado do desktop (outracopia.py)
+# ═════════════════════════════════════════════════════════════════
+def diagnostico_area_web(excesso, A_calc, A_inst, Nt, Lta, d):
+    """Bloco multi-linha de diagnóstico de área (Kern e BD)."""
+    Nt_sug  = max(1, math.ceil(A_calc / (math.pi * d * Lta)))
+    Lta_sug = A_calc / (Nt * math.pi * d) if Nt > 0 else 0.0
+    A_alvo  = A_calc * 1.15
+    Nt_alvo  = max(1, math.ceil(A_alvo / (math.pi * d * Lta)))
+    Lta_alvo = A_alvo / (Nt * math.pi * d) if Nt > 0 else 0.0
+
+    L = ["\n─── DIAGNÓSTICO DE ÁREA ──────────────────────"]
+
+    if excesso < 0:
+        L += [f"❌ ÁREA INSUFICIENTE — projeto inviável",
+              f"   A instalada ({A_inst:.4f} m²) < A necessária ({A_calc:.4f} m²).",
+              f"   ► Aumentar Nt para ≥ {Nt_sug} tubos (ideal: {Nt_alvo})",
+              f"   ► OU aumentar Lta para ≥ {Lta_sug:.3f} m (ideal: {Lta_alvo:.3f})"]
+    elif excesso < 10:
+        L += [f"⚠️ MARGEM ESTREITA ({excesso:.1f} %)",
+              f"   ► Aumentar para 10–25 % de folga.",
+              f"   ► Aumentar Nt para ~{Nt_alvo} OU Lta para ~{Lta_alvo:.3f} m."]
+    elif excesso <= 25:
+        L += [f"✅ PROJETO ADEQUADO ({excesso:.1f} %)",
+              f"   Excesso dentro da faixa ideal (10–25 %)."]
+    elif excesso <= 35:
+        L += [f"⚠️ LEVE SUPERDIMENSIONAMENTO ({excesso:.1f} %)",
+              f"   ► Reduzir Nt para ~{Nt_alvo} OU Lta para ~{Lta_alvo:.3f} m."]
+    else:
+        L += [f"❌ SUPERDIMENSIONAMENTO EXCESSIVO ({excesso:.1f} %)",
+              f"   ► Reduzir Nt para ~{Nt_alvo} OU Lta para ~{Lta_alvo:.3f} m.",
+              f"   ► OU considerar casco de diâmetro menor."]
+
+    L += ["", "   Ref: Kern (1950) · Thulukkanam (2013) · TEMA"]
+    return "\n".join(L)
+
+
+def diagnostico_fatores_J_web(fat, Res, Bc, Lbc, Ltp, Np):
+    """Análise interpretativa dos fatores J (Bell-Delaware)."""
+    Jc, Jl, Jb, Js, Jr = fat["Jc"], fat["Jl"], fat["Jb"], fat["Js"], fat["Jr"]
+    ProdJ = Jc * Jl * Jb * Js * Jr
+
+    Lbc_red = Lbc * 0.80
+    Bc_red  = max(15, Bc - 5)
+    Ltp_red = Ltp * 0.90
+
+    L = ["\n─── ANÁLISE DOS FATORES J ───────────────────",
+         f"∏J = {ProdJ:.4f}  (eficiência real vs. feixe ideal)"]
+
+    avisos = []
+
+    if ProdJ < 0.60:
+        avisos.append(
+            f"⚠️ ∏J = {ProdJ:.3f} — eficiência muito baixa (< 60 %).\n"
+            f"   O escoamento real desvia muito do ideal. Revise a geometria.")
+
+    if Jl < 0.60:
+        avisos.append(
+            f"⚠️ Jl = {Jl:.3f} — VAZAMENTO EXCESSIVO (tubo-chicana e chicana-casco).\n"
+            f"   As correntes A e E dominam. Ações corretivas:\n"
+            f"     → Revisar folgas TEMA (Ltb, Lsb)\n"
+            f"     → Adicionar/aumentar tiras de vedação Nss\n"
+            f"     → Reduzir corte da chicana Bc para forçar mais crossflow")
+    elif Jl < 0.75:
+        avisos.append(
+            f"⚠️ Jl = {Jl:.3f} — vazamento moderado.\n"
+            f"     → Considerar adicionar tiras de vedação (Nss)")
+
+    if Jb < 0.70:
+        avisos.append(
+            f"⚠️ Jb = {Jb:.3f} — BYPASS EXCESSIVO (feixe-casco, corrente C).\n"
+            f"   A folga Lbb está grande ou Nss insuficiente. Ações:\n"
+            f"     → Aumentar Nss (tiras de vedação)\n"
+            f"     → Reduzir Lbc para ~{Lbc_red:.3f} m")
+    elif Jb < 0.85:
+        avisos.append(
+            f"⚠️ Jb = {Jb:.3f} — bypass moderado.\n"
+            f"     → Adicionar ou aumentar Nss")
+
+    if Jc < 0.90:
+        avisos.append(
+            f"⚠️ Jc = {Jc:.3f} — poucos tubos em escoamento cruzado.\n"
+            f"   O corte da chicana é grande demais. Ações:\n"
+            f"     → Reduzir Bc de {Bc:.0f} % para ~{Bc_red:.0f} %")
+
+    if Js < 0.90:
+        avisos.append(
+            f"⚠️ Js = {Js:.3f} — espaçamento desigual entrada/saída.\n"
+            f"     → Idealmente Lbi = Lbo = Lbc")
+
+    if Jr < 1.00:
+        avisos.append(
+            f"⚠️ Jr = {Jr:.3f} — regime laminar com gradiente adverso.\n"
+            f"   Res = {Res:.0f} < 100. Ações:\n"
+            f"     → Aumentar vazão do casco\n"
+            f"     → Reduzir Lbc para ~{Lbc_red:.3f} m\n"
+            f"     → Reduzir Ltp para ~{Ltp_red:.4f} m")
+
+    if not avisos:
+        avisos.append("✅ Todos os fatores J dentro de valores aceitáveis.")
+
+    L += avisos
+
+    L += ["", "─── REGIME NO CASCO ─────────────────────────"]
+    if Res < 100:
+        L.append(f"⚠️ Res = {Res:.0f} — LAMINAR. Bell-Delaware tem precisão reduzida.\n"
+                 f"   → Reduzir Lbc para ~{Lbc_red:.3f} m (aumenta Gs)")
+    elif Res < 1000:
+        L.append(f"⚠️ Res = {Res:.0f} — TRANSIÇÃO. Correlações menos precisas.")
+    else:
+        L.append(f"✅ Res = {Res:.0f} — TURBULENTO. Correlações confiáveis.")
+
+    if Np > 1:
+        L += ["", "─── FATOR F (LMTD) ──────────────────────────",
+              f"   Np = {Np} passes. Se F < 0,75, considerar:",
+              f"     → Aumentar Np para melhorar F",
+              f"     → OU dividir em 2 cascos em série"]
+
+    L += ["", "   Ref: Bell & Mueller (2001) · Kakaç & Liu (2002)"]
+    return "\n".join(L)
+
+
+
+# ═════════════════════════════════════════════════════════════════
 #  CABEÇALHO
 # ═════════════════════════════════════════════════════════════════
 st.title("⚙️ Simulador Casco-e-Tubo")
@@ -1353,11 +1477,15 @@ def _executar_calculo(prefixo, metodo):
         ok_ps = "✓ OK" if dPs_kPa <= dPs_max else "⚠️ EXCEDE"
         ok_pt = "✓ OK" if dPt_kPa <= dPt_max else "⚠️ EXCEDE"
 
-        if ex < 0: diag = "❌ ÁREA INSUFICIENTE"
-        elif ex < 10: diag = "⚠️ MARGEM ESTREITA (< 10%)"
-        elif ex <= 25: diag = "✅ PROJETO ADEQUADO (10–25%)"
-        elif ex <= 35: diag = "⚠️ LEVE SUPERDIMENSIONAMENTO (25–35%)"
-        else: diag = "❌ SUPERDIMENSIONAMENTO EXCESSIVO (> 35%)"
+        # Diagnóstico detalhado de área (comum aos dois métodos)
+        bloco_area = diagnostico_area_web(ex, glob["A"], Ai, Nt, Lta, d)
+
+        # Diagnóstico detalhado dos fatores J (só Bell-Delaware)
+        if metodo == "bd":
+            Bc_v = pf(f"{prefixo}_Bc", 25)
+            bloco_J = diagnostico_fatores_J_web(fat, casco["Res"], Bc_v, Lbc, Ltp, Np)
+        else:
+            bloco_J = ""
 
         txt = f"""
 ╔══════════════════════════════════════════════╗
@@ -1399,15 +1527,15 @@ def _executar_calculo(prefixo, metodo):
   A calculada = {glob['A']:.4f} m²
   A instalada = {Ai:.4f} m²
   Excesso     = {ex:.1f} %
-
-─── DIAGNÓSTICO ──────────────────────────────
-  {diag}
+{bloco_area}
 """
         if metodo == "bd":
-            txt += (f"\n─── FATORES J ────────────────────────────────\n"
-                    f"  Jc = {fat['Jc']:.4f}   Jl = {fat['Jl']:.4f}   Jb = {fat['Jb']:.4f}\n"
-                    f"  Js = {fat['Js']:.4f}   Jr = {fat['Jr']:.4f}\n"
-                    f"  ∏J = {PJ:.4f}\n")
+            txt += ("\n─── FATORES J (valores) ──────────────────────\n"
+                    f"  Jc = {fat['Jc']:.4f}   Jl = {fat['Jl']:.4f}   "
+                    f"Jb = {fat['Jb']:.4f}\n"
+                    f"  Js = {fat['Js']:.4f}   Jr = {fat['Jr']:.4f}   "
+                    f"∏J = {PJ:.4f}\n")
+            txt += bloco_J
 
         st.session_state[f"{prefixo}_resultado"] = txt
 
