@@ -298,7 +298,7 @@ def kern_dPs(Gs,Res,rho_s,Ds,Dhs,mu_s,mws,Nb):
 
 def kern_tubos(mt,rho_t,mu_t,cp_t,k_t,mwt,d,di,Lta,Nt,Np):
     At=math.pi/4*di**2*Nt; Gt=mt/(At/Np); Ret=di*Gt/mu_t; Prt=mu_t*cp_t/k_t
-    if Ret<2300:
+    if Ret<2000:
         arg=max(Ret*Prt*di/Lta,1e-6)
         Nut=max(3.66,1.86*arg**(1/3)*(mu_t/mwt)**0.14); reg="Laminar"
     elif Ret>10000:
