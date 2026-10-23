@@ -1,5 +1,5 @@
 """
-Simulador Casco-e-Tubo — Streamlit
+Simulador Casco e Tubo — Streamlit
 Kern & Bell-Delaware
 """
 import math
