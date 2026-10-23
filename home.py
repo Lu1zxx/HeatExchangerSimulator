@@ -1,5 +1,5 @@
 """
-Home — Simulador de Trocadores de Calor Casco-e-Tubo
+Home — Simulador de Trocadores de Calor Casco e Tubo
 Página inicial do projeto. O simulador está em pages/.
 """
 import streamlit as st
