@@ -14,7 +14,7 @@ except ImportError:
     _CP = None; COOLPROP_DISPONIVEL = False; COOLPROP_VERSAO = None
 
 # ═════════════════════════════════════════════════════════════════
-st.set_page_config(page_title="Simulador — Casco-e-Tubo",
+st.set_page_config(page_title="Simulador — Casco e Tubo",
                    page_icon="⚙️", layout="wide",
                    initial_sidebar_state="expanded")
 
