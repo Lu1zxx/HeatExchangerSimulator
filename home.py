@@ -5,7 +5,7 @@ Página inicial do projeto. O simulador está em pages/.
 import streamlit as st
 from pathlib import Path
 
-st.set_page_config(page_title="Simulador — Casco-e-Tubo",
+st.set_page_config(page_title="Simulador — Casco e Tubo",
                    page_icon="⚙️", layout="wide",
                    initial_sidebar_state="expanded")
     
