@@ -106,7 +106,7 @@ FLUIDOS_COOLPROP = {
     "CO₂":"CarbonDioxide","Amônia (NH₃)":"Ammonia","Metano":"Methane","Etano":"Ethane",
     "Propano":"n-Propane","Isobutano":"IsoButane","n-Butano":"n-Butane",
     "n-Pentano":"n-Pentane","n-Hexano":"n-Hexane","n-Heptano":"n-Heptane",
-    "n-Octano":"n-Octane","n-Decano":"n-Decane","Benzeno":"Benzene",
+    "n-Octano":"n-Octane","n-Decano":"n-Decane","n-Dodecano":"n-Dodecane","Benzeno":"Benzene",
     "Tolueno":"Toluene","Etilbenzeno":"EthylBenzene","Metanol":"Methanol","Etanol":"Ethanol",
     "R134a":"R134a","R410A":"R410A","R404A":"R404A","R407C":"R407C","R507A":"R507A",
     "R32":"R32","R152a":"R152A","R1234yf":"R1234yf","R1234ze(E)":"R1234ze(E)",
