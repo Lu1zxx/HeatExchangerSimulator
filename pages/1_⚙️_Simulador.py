@@ -1587,6 +1587,19 @@ def render_aba(prefixo, metodo):
 # ═════════════════════════════════════════════════════════════════
 #  EXECUTAR CÁLCULO (com validação completa)
 # ═════════════════════════════════════════════════════════════════
+def fmt_dp(kPa):
+    """ΔP legível: em Pa quando < 1 kPa (evita '0,0003 kPa')."""
+    return f"{kPa*1000:.2f} Pa" if abs(kPa) < 1.0 else f"{kPa:.4f} kPa"
+
+def nota_laminar(Res, metodo):
+    if metodo == "bd" and Res < 100:
+        return ("\n  ⚠️ Casco LAMINAR (Re < 100): Jr (interpolado p/ 20<Re<100), Jc/Jl/Jb/Js e o ΔP do casco\n"
+                "     têm incerteza alta nessa faixa; use o ΔPs só como ordem de grandeza.\n")
+    if metodo == "kern" and Res < 400:
+        return ("\n  ⚠️ Kern fora da faixa (Re < 400): o fator de atrito é mantido em Re = 400;\n"
+                "     o ΔPs é só ordem de grandeza.\n")
+    return ""
+
 def _executar_zonas(prefixo, metodo):
     """Casco com CONDENSAÇÃO: método das zonas (dessuper. + condensação + sub-resf.)."""
     Thi = pf(f"{prefixo}_Thi"); Tci = pf(f"{prefixo}_Tci"); Tval = pf(f"{prefixo}_Tsaida")
@@ -1668,7 +1681,7 @@ def _executar_zonas(prefixo, metodo):
 ─── TUBOS ────────────────────────────────────
   Gt  = {tb['Gt']:.4f} kg/m²·s   v = {tb['vt']:.3f} m/s
   Ret = {tb['Ret']:.0f} [{tb['reg']}]   ht = {tb['ht']:.2f} W/m²·K
-  ΔPt = {dPt:.4f} kPa   [máx {dPt_max:.1f}]  {'✓ OK' if dPt <= dPt_max else '⚠️ EXCEDE'}
+  ΔPt = {fmt_dp(dPt)}   [máx {dPt_max:.1f} kPa]  {'✓ OK' if dPt <= dPt_max else '⚠️ EXCEDE'}
 
 ─── DIMENSIONAMENTO (A = Σ A_zona) ───────────
   U médio (ponderado por área) = {r['Um']:.2f} W/m²·K
@@ -1680,6 +1693,8 @@ def _executar_zonas(prefixo, metodo):
 {aviso}"""
     if notas:
         txt += "".join(f"  • BD zona monofásica: Res = {n[0]:.0f}, ∏J = {n[1]:.4f}\n" for n in notas)
+    st.session_state[f"{prefixo}_Tbulk_s"] = (Thi + r["Tho"])/2     # habilita "↺ Usar T média"
+    st.session_state[f"{prefixo}_Tbulk_t"] = (Tci + r["Tco"])/2
     st.session_state[f"{prefixo}_resultado"] = txt
     st.session_state[f"{prefixo}_memorial"] = (
         "MEMORIAL — MÉTODO DAS ZONAS\n"
@@ -1830,13 +1845,13 @@ def _executar_calculo(prefixo, metodo):
   Gs  = {casco['Gs']:.4f} kg/m²·s
   Res = {casco['Res']:.0f}   Prs = {casco['Prs']:.4f}
   hs  = {casco['hs']:.2f} W/m²·K
-  ΔPs = {dPs_kPa:.4f} kPa   [máx {dPs_max:.1f}]  {ok_ps}
+  ΔPs = {fmt_dp(dPs_kPa)}   [máx {dPs_max:.1f} kPa]  {ok_ps}
 
 ─── TUBOS ────────────────────────────────────
   Gt  = {tubos['Gt']:.4f} kg/m²·s   v = {tubos['vt']:.3f} m/s
   Ret = {tubos['Ret']:.0f} [{tubos['reg']}]
   ht  = {tubos['ht']:.2f} W/m²·K
-  ΔPt = {dPt_kPa:.4f} kPa   [máx {dPt_max:.1f}]  {ok_pt}
+  ΔPt = {fmt_dp(dPt_kPa)}   [máx {dPt_max:.1f} kPa]  {ok_pt}
 
 ─── COEFICIENTE GLOBAL ───────────────────────
   R_ext  = {glob['Re']:.6f}   R_cond = {glob['Rc']:.6f}
@@ -1857,6 +1872,7 @@ def _executar_calculo(prefixo, metodo):
                     f"∏J = {PJ:.4f}\n")
             txt += bloco_J
 
+        txt += nota_laminar(casco["Res"], metodo)
         st.session_state[f"{prefixo}_resultado"] = txt
 
         memo = f"""════════════════════════════════════════════════════════════
