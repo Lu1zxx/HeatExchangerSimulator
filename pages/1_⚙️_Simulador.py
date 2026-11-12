@@ -461,6 +461,8 @@ def calcular_zonas(metodo, Thi, Tsat, ms, lam, frac, liq, vap, tub, Tci, mt,
     Q_con = Wc*lam
     if obj == "Th,o":
         Tho = min(Tval, Tsat)
+        if frac < 1 and 0 < Tsat - Tho <= 0.5:
+            Tho = Tsat   # saída bifásica: Th,o do DWSIM fica ~0,1 K abaixo de Tsat (queda de pressão)
         if frac < 1 and Tho < Tsat:
             raise ValueError("Com fração condensada x < 1 a saída fica em Tsat (sem sub-resfriamento). Use x = 1 ou Th,o = Tsat.")
         Q_sub = ms*liq["cp"]*(Tsat-Tho) if Tho < Tsat else 0.0
