@@ -10,6 +10,22 @@ Correções Bell-Delaware (conferidas com Serth, Process Heat Transfer, cap. 6):
   5. δsb padrão do Serth (diametral = 1,6 + 0,004·Ds, mm)                 [Eq. 6.58]
   6. Ncw conforme Eq. 6.11; ΔP laminar da janela conforme Eq. 6.12
   7. Campos opcionais: δtb, Lsb, Lbb e nº de tubos em escoamento cruzado
+
+Alterações da revisão de validação (procure por "[ALTERAÇÃO n]" no código):
+  1. fator_F: forma-limite correta para R = 1; erro explícito se o arranjo 1-Np for
+     inviável (P ≥ P_máx); sem valores "de socorro"; aviso quando F < 0,75.
+  2. Kern: (μ/μw)^0,14 passa a multiplicar o hs do casco.
+  3. Bell-Delaware: ΔP laminar da janela usa Lbc (espaçamento), não Lc (corte).
+  4. Bell-Delaware: Nb = (L − Lbi − Lbo)/Lbc + 1.
+  5. Kern: aviso de faixa de validade do hs para Re < 2000.
+  6. Cálculo monofásico separado da interface em calcular_monofasico() — usado pelo
+     script verificacao.py. A iteração da T de parede no BD passou a usar hs (com os
+     fatores J) em vez de hi (feixe ideal).
+  7. Condensação: padrão = Kern (1950) Eq. 12.42; forma com Nr^(−1/6) virou opção (não é do Kern).
+  8. Tubos: perda de retorno = 4·Np cargas de velocidade (Kern, Eq. 7.46).
+  9. μ na parede pela variação real μ(T) do banco de fluidos/CoolProp, quando aplicável;
+     φ pode ser fixado (phi_s, phi_t) para reproduzir exemplos de livro.
+ 10. Bell-Delaware: Rb = exp[−Cbp·Fsbp·(1 − ∛(2·rss))] (antes usava ∛rss) — Serth Eq. 6.53.
 """
 import math
 import streamlit as st
@@ -113,6 +129,23 @@ FLUIDOS_COOLPROP = {
     "R245fa":"R245fa","R125":"R125","R143a":"R143a","R227ea":"R227EA",
     "R22 (legado)":"R22","R11 (legado)":"R11","R12 (legado)":"R12","R123 (legado)":"R123",
 }
+# Fluidos extras do CoolProp que TÊM modelo de viscosidade e de condutividade (testado no CoolProp 8.0.0).
+# Os demais fluidos da biblioteca (acetona, ciclo-hexano, SO₂, R142b, R141b, R124, R113, R114, éter dietílico,
+# THF, etileno, propilenoglicol…) NÃO têm modelo de transporte e por isso não entram na lista.
+_FLUIDOS_EXTRAS = {
+    "Isopentano":"Isopentane","Ciclopentano":"Cyclopentane","n-Nonano":"n-Nonane","Propileno":"Propylene",
+    "m-Xileno":"m-Xylene","o-Xileno":"o-Xylene","p-Xileno":"p-Xylene","Água pesada (D₂O)":"HeavyWater",
+    "Para-hidrogênio":"ParaHydrogen","SF₆":"SulfurHexafluoride","R23":"R23","R13":"R13","R14":"R14",
+    "R116":"R116","R236ea":"R236EA","R236fa":"R236FA","RC318":"RC318",
+}
+if COOLPROP_DISPONIVEL:
+    try:
+        _disp = set(_CP.get_global_param_string("FluidsList").split(","))
+        for _n, _f in _FLUIDOS_EXTRAS.items():
+            if _f in _disp:
+                FLUIDOS_COOLPROP[_n] = _f
+    except Exception:
+        pass
 TAB10 = {
     30:[(1e5,0.321,-0.388,1.450,0.519),(1e4,0.321,-0.388,None,None),
         (1e3,0.593,-0.477,None,None),(1e2,1.360,-0.657,None,None),(10,1.400,-0.667,None,None)],
@@ -213,9 +246,19 @@ def bundle_diameter(Nt,do,Np,theta):
     Lbb=folgas_tema(Db*1000)["Lbb_mm"]/1000
     return {"Db":Db,"Ds":Db+Lbb,"K1":K1,"n1":n1,"Ltp_sug":do*1.25}
 
-def mu_parede(mu_bulk,T_bulk,T_w,fase="liquido"):
+def mu_parede(mu_bulk,T_bulk,T_w,fase="liquido",mu_fn=None):
+    """Viscosidade na temperatura da parede.
+    [ALTERAÇÃO 9] Se mu_fn (μ(T °C) do banco de fluidos/CoolProp) for informada, usa a
+    variação REAL com a temperatura, preservando o μ digitado:  μw = μ_bulk·μ_fn(Tw)/μ_fn(Tb).
+    Sem mu_fn, cai na estimativa anterior (Andrade com um ponto, para líquidos)."""
     Tbk=T_bulk+273.15; Twk=T_w+273.15
     if abs(Tbk-Twk)<0.5: return mu_bulk
+    if mu_fn is not None:
+        try:
+            r=mu_fn(T_w)/mu_fn(T_bulk)
+            if r>0 and math.isfinite(r): return mu_bulk*r
+        except Exception:
+            pass
     if fase.lower().startswith("g"):
         ratio=(Twk/Tbk)**0.7
     else:
@@ -245,23 +288,48 @@ def lmtd(Thi,Tho,Tci,Tco):
     if d1<=0 or d2<=0: raise ValueError("ΔT ≤ 0 — verifique as temperaturas")
     return d1 if abs(d1-d2)<1e-6 else (d1-d2)/math.log(d1/d2)
 
+F_MIN_RECOMENDADO = 0.75   # abaixo disso o 1-casco/Np-passes é desaconselhado (Kern, 1950; Serth)
+
+def fator_P_max(R):
+    """[ALTERAÇÃO 1] Maior P atingível num trocador 1 casco / Np par passes (F → 0)."""
+    S = math.sqrt(R*R + 1)
+    return 2.0/(1.0 + R + S)
+
 def fator_F(Thi,Tho,Tci,Tco,Np):
+    """Fator F para 1 passe no casco e Np passes (par) nos tubos — Bowman, Mueller & Nagle (1940).
+    [ALTERAÇÃO 1] Correções em relação à versão anterior:
+      · R = 1: usa a forma-limite correta (antes dava divisão por zero e devolvia F = 1,0);
+      · arranjo inviável (P ≥ P_máx): levanta ValueError (antes devolvia 0,75 sem aviso);
+      · sem valores "de socorro" (0,85; 1,0) nem piso artificial de 0,5.
+    """
     if Np==1: return 1.0
-    R=(Thi-Tho)/(Tco-Tci) if Tco!=Tci else 1.0
-    P=(Tco-Tci)/(Thi-Tci) if Thi!=Tci else 0.5
+    if Tco<=Tci: raise ValueError("Fator F: Tc,o deve ser maior que Tc,i.")
+    if Tho>Thi:  raise ValueError("Fator F: Th,o deve ser menor ou igual a Th,i.")
+    R=(Thi-Tho)/(Tco-Tci)
+    P=(Tco-Tci)/(Thi-Tci)
+    Pmax=fator_P_max(R)
+    if P>=Pmax:
+        raise ValueError(
+            f"Arranjo 1 casco / {Np} passes INVIÁVEL para estas temperaturas: "
+            f"P = {P:.4f} ≥ P_máx = {Pmax:.4f} (R = {R:.4f}). "
+            f"Use 2 ou mais cascos em série, ou revise as temperaturas/vazões.")
+    S=math.sqrt(R*R+1)
     if abs(R-1)<1e-4:
-        if P>=1: return 0.5
-        val=P/(1-P)
-        if val<=0: return 1.0
-        try: F=math.sqrt(2)*val/math.log((1-P)/(1-P*(1+1/val)))
-        except: F=1.0
+        # forma-limite para R → 1
+        num=P*math.sqrt(2)/(1-P)
+        den=math.log((2-P*(2-math.sqrt(2)))/(2-P*(2+math.sqrt(2))))
     else:
-        S=math.sqrt(R**2+1)/(R-1)
-        arg=(2/P-1-R+math.sqrt(R**2+1))/(2/P-1-R-math.sqrt(R**2+1))
-        if arg<=0: return 0.75
-        try: F=S*math.log((1-P)/(1-P*R))/math.log(arg)
-        except: F=0.85
-    return max(0.5,min(1.0,F))
+        num=S*math.log((1-P)/(1-P*R))/(R-1)
+        den=math.log((2-P*(R+1-S))/(2-P*(R+1+S)))
+    return num/den
+
+def aviso_F(F,Np):
+    """[ALTERAÇÃO 1] Texto de alerta quando F < 0,75."""
+    if Np>1 and F<F_MIN_RECOMENDADO:
+        return (f"  ⚠️ F = {F:.3f} < {F_MIN_RECOMENDADO}: região íngreme da curva F (há ou quase há\n"
+                f"     cruzamento de temperatura). Pequenos erros nas T alteram muito a área.\n"
+                f"     Recomenda-se 2 cascos em série.\n")
+    return ""
 
 def coef_global(hs,ht,d,di,kp,Q,dTlm,Rfe=0,Rfi=0,F=1):
     Re=1/hs; Rc=d*math.log(d/di)/(2*kp); Ri=(d/di)/ht
@@ -296,9 +364,14 @@ def kern_geo(d,di,Lta,Ltp,theta,Ds,Lbc,Np):
         4*(0.866*Ltp**2/2-math.pi*d**2/8)/(math.pi*d/2)
     return{"Dhs":Dhs,"C":Ltp-d,"Atc":Ds*(Ltp-d)*Lbc/Ltp}
 
-def kern_casco(ms,mu_s,cp_s,k_s,geo):
+KERN_RE_MIN = 2000.0   # faixa de validade da correlação de Kern: 2·10³ < Re < 10⁶
+
+def kern_casco(ms,mu_s,cp_s,k_s,geo,phi=1.0):
+    """Kern (1950): hs = 0,36·(k/De)·Re^0,55·Pr^(1/3)·(μ/μw)^0,14.
+    [ALTERAÇÃO 2] phi = (μ/μw)^0,14 agora é aplicado (antes era calculado e exibido, mas não usado)."""
     Gs=ms/geo["Atc"]; Res=geo["Dhs"]*Gs/mu_s; Prs=mu_s*cp_s/k_s
-    return{"Gs":Gs,"Res":Res,"Prs":Prs,"hs":(0.36*k_s/geo["Dhs"])*Res**0.55*Prs**(1/3)}
+    hs=(0.36*k_s/geo["Dhs"])*Res**0.55*Prs**(1/3)*phi
+    return{"Gs":Gs,"Res":Res,"Prs":Prs,"phi":phi,"hs":hs,"fora_h":Res<KERN_RE_MIN}
 
 def kern_dPs(Gs,Res,rho_s,Ds,Dhs,mu_s,mws,Nb):
     phi=(mu_s/mws)**0.14; Rc=max(Res,400)
@@ -321,7 +394,9 @@ def kern_tubos(mt,rho_t,mu_t,cp_t,k_t,mwt,d,di,Lta,Nt,Np):
     ft=8*((8/Ret)**12+1/(_A+_B)**1.5)**(1/12)
     phi=(mu_t/mwt)**0.14 if Ret>=2300 else (mu_t/mwt)**0.25
     dPf=ft*(Lta/di)*(Gt**2/(2*rho_t))*(1/phi)*Np
-    dPr=4*max(Np-1,0)*(Gt**2/(2*rho_t))
+    # [ALTERAÇÃO 8] Perda de retorno conforme Kern (1950), Eq. 7.46: ΔPr = 4·n·ρV²/2
+    # (antes: 4·(Np−1), que não corresponde ao método de Kern; conferido com os Ex. 7.3, 7.4, 7.6)
+    dPr=4*Np*(Gt**2/(2*rho_t))
     return{"Gt":Gt,"vt":Gt/rho_t,"Ret":Ret,"Prt":Prt,"Nut":Nut,"ht":Nut*k_t/di,
            "ft":ft,"dPt":dPf+dPr,"dPf":dPf,"dPr":dPr,"reg":reg}
 
@@ -333,7 +408,12 @@ def bd_geo(d,Lta,Ltp,theta,Ds,Bc,Lbc,Lbi,Lbo,Nt,Nss,Lbb_m=None,Ltb_m=4e-4,
     Nt_cross: nº de tubos em escoamento cruzado (do desenho); None -> Fc por Eq. 6.35
     """
     Lbb=Lbb_m if Lbb_m else (12+0.005*(Ds*1000))/1000
-    Dotl=Ds-Lbb; Dctl=Dotl-d; Nb=max(1,int(Lta/Lbc)-1)
+    Dotl=Ds-Lbb; Dctl=Dotl-d
+    # [ALTERAÇÃO 4] Nb = (L − Lbi − Lbo)/Lbc + 1  (Taborek; Serth cap. 6).
+    # Antes: int(L/Lbc) − 1, que só vale quando Lbi = Lbo = Lbc.
+    Lbi=Lbi if Lbi and Lbi>0 else Lbc; Lbo=Lbo if Lbo and Lbo>0 else Lbc
+    Nb_real=(Lta-Lbi-Lbo)/Lbc+1
+    Nb=max(1,int(Nb_real+1e-9))
     ads=max(-1,min(1,1-2*Bc/100)); tds=2*math.acos(ads)
     act=max(-1,min(1,(Ds/Dctl)*(1-2*Bc/100))); tct=2*math.acos(act)
     Leff=0.707*Ltp if theta==45 else Ltp
@@ -353,7 +433,7 @@ def bd_geo(d,Lta,Ltp,theta,Ds,Bc,Lbc,Lbi,Lbo,Nt,Nss,Lbb_m=None,Ltb_m=4e-4,
     Lsb=Lsb_m if Lsb_m else (1.6+0.004*(Ds*1000))/1000   # diametral
     Ssb=math.pi*Ds*(Lsb/2)*(2*math.pi-tds)/(2*math.pi)    # = Ds·δsb·(π−θds/2), δsb=Lsb/2 (Eq. 6.37)
     Stb=math.pi*d*Ltb_m*Nt*(1-Fw)                         # Eq. 6.22 (δtb radial)
-    return{"Lbb":Lbb,"Nb":Nb,"tds":tds,"tct":tct,"Sm":Sm,"Sw":Sw,"Dw":Dw,
+    return{"Lbb":Lbb,"Nb":Nb,"Nb_real":Nb_real,"Lbi":Lbi,"Lbo":Lbo,"tds":tds,"tct":tct,"Sm":Sm,"Sw":Sw,"Dw":Dw,
            "Fc":Fc,"Fw":Fw,"Nwt":Nwt,"Ntcc":Ntcc,"Ntcw":Ntcw,"Sb":Sb,"Fsbp":Fsbp,
            "Ssb":Ssb,"Stb":Stb,"Lbc":Lbc,"Lc":Ds*Bc/100,"Lsb":Lsb,"Ltb":Ltb_m,
            "Fc_manual":Fc_manual}
@@ -369,7 +449,9 @@ def bd_fat(geo,Res,Nb,Lbi,Lbo,Lbc,Nss):
     Cbh=1.25 if Res>=100 else 1.35; Cbp=3.7 if Res>100 else 4.5
     if rss>=0.5: Jb=Rb=1.0
     else:
-        fj=(2*rss)**(1/3) if rss>0 else 0; fr=rss**(1/3) if rss>0 else 0
+        # [ALTERAÇÃO 10] Rb usa ∛(2·rss), igual ao Jb (Serth Eq. 6.53; Taborek). Antes: ∛(rss),
+        # que subestimava Rb (−12 % no Ex. 6.1 do Serth, com rss = 0,1).
+        fj=(2*rss)**(1/3) if rss>0 else 0; fr=fj
         Jb=math.exp(-Cbh*Fsbp*(1-fj)); Rb=math.exp(-Cbp*Fsbp*(1-fr))
     Nc=(Ntcc+Ntcw)*(Nb+1)
     if Res>100: Jr=1.0
@@ -408,8 +490,10 @@ def bd_dPs(ms,rho_s,mu_s,mws,d,Ltp,theta,geo,fat):
     r=Ntcw/Ntcc if Ntcc>0 else 0
     dPe=2*dPbi*(1+r)*fat["Rb"]*fat["Rs"]
     Gw=ms/math.sqrt(Sm*Sw) if Sw>0 else 1e-6
+    # [ALTERAÇÃO 3] Janela laminar: o 2º termo usa o ESPAÇAMENTO entre chicanas (Lbc),
+    # não a altura do corte (Lc) — Taborek (HEDH); conferir Serth Eq. 6.12.
     dPwi=(2+0.6*Ntcw)*Gw**2/(2*rho_s) if Res>=100 else \
-         26*Gw*mu_s/rho_s*(Ntcw/(Ltp-d)+geo["Lc"]/Dw**2)+Gw**2/rho_s
+         26*Gw*mu_s/rho_s*(Ntcw/(Ltp-d)+Lbc/Dw**2)+Gw**2/rho_s
     dPw=dPwi*Nb*fat["Rl"] if Nb>0 else 0
     return{"fs":fs,"dPc":dPc,"dPw":dPw,"dPe":dPe,"dPs":dPc+dPw+dPe}
 
@@ -421,19 +505,23 @@ def bd_dPs(ms,rho_s,mu_s,mws,d,Ltp,theta,geo,fat):
 #    (Bell-Delaware NÃO se aplica: foi correlacionado só p/ escoamento monofásico)
 #  · A_total = Σ A_zona ;  F por zona (F = 1 quando o lado quente é isotérmico)
 # ═════════════════════════════════════════════════════════════════
-def h_condensacao_kern(W_cond, kl, rho_l, rho_v, mu_l, Lta, Nt, Ds, Ltp, com_Nr=True):
-    """h médio de condensação em feixe horizontal, Γ' = W/(L·Nt^(2/3)):
-       · com_Nr=True  (Kern, 1950): h = 0,95·kl·[ρl(ρl−ρv)g/(μl·Γ')]^(1/3)·Nr^(−1/6),
-         Nr ≈ (2/3)·Ds/Ltp (nº médio de tubos numa coluna vertical) — mais conservador;
-       · com_Nr=False (Serth, Eq. 11.35–11.36): h = 1,52·[kl³ρl(ρl−ρv)g/(4·μl·Γ')]^(1/3),
-         sem a correção de Nr."""
+def h_condensacao_kern(W_cond, kl, rho_l, rho_v, mu_l, Lta, Nt, Ds, Ltp, com_Nr=False):
+    """h médio de condensação em feixe horizontal, carga G'' = W/(L·Nt^(2/3)) (Kern, Eq. 12.43).
+    [ALTERAÇÃO 7] Correção de atribuição e de padrão:
+       · com_Nr=False (PADRÃO) — Kern (1950), Eq. 12.42, p. 266:
+             h = 1,5·[kl³·ρl(ρl−ρv)·g/μl²]^(1/3)·(4G''/μl)^(−1/3)
+         O efeito do feixe já está em Nt^(2/3) (Eq. 12.43). Conferido com o Exemplo 12.1.
+       · com_Nr=True — forma com correção adicional Nr^(−1/6) (Coulson & Richardson/Sinnott):
+             h = 0,95·kl·[ρl(ρl−ρv)g/(μl·G'')]^(1/3)·Nr^(−1/6),  Nr ≈ (2/3)·Ds/Ltp.
+         Mais conservadora (≈ 35–40 % menor em feixes grandes). NÃO é a equação do livro do Kern.
+       (Antes, a forma com Nr era o padrão e estava atribuída ao Kern, 1950.)"""
     g = 9.80665
     Gam = W_cond/(Lta*Nt**(2/3))
     Nr = max(1.0, (2/3)*Ds/Ltp)
     if com_Nr:
         h = 0.95*kl*(rho_l*(rho_l-rho_v)*g/(mu_l*Gam))**(1/3)*Nr**(-1/6)
     else:
-        h = 1.52*(kl**3*rho_l*(rho_l-rho_v)*g/(4*mu_l*Gam))**(1/3)
+        h = 1.5*(kl**3*rho_l*(rho_l-rho_v)*g/mu_l**2)**(1/3)*(4*Gam/mu_l)**(-1/3)
     return h, Gam, Nr
 
 def props_saturacao(nome, P_Pa, Thi_C=None, Tci_C=None):
@@ -507,8 +595,9 @@ def calcular_zonas(metodo, Thi, Tsat, ms, lam, frac, liq, vap, tub, Tci, mt,
             if tipo != "cond" and Np > 1 and abs(Th_b-Th_a) > 1e-9:
                 F = fator_F(Th_b, Th_a, Tc_a, Tc_b, Np)   # Th,in=Th_b ; Th,out=Th_a
             if tipo == "cond":
-                hs, Gam, Nr = h_condensacao_kern(Wc, liq["k"], liq["rho"], vap["rho"], liq["mu"], Lta*Lfrac, Nt, Ds, Ltp, G.get("cond_nr", True))
-                reg = f"Kern/Nusselt (Γ'={Gam:.3f} kg/m·s, Nr={Nr:.1f}, condensa em {Lfrac*100:.0f}% do comprimento dos tubos)"
+                hs, Gam, Nr = h_condensacao_kern(Wc, liq["k"], liq["rho"], vap["rho"], liq["mu"], Lta*Lfrac, Nt, Ds, Ltp, G.get("cond_nr", False))
+                _corr = "Kern+Nr^(-1/6)" if G.get("cond_nr", False) else "Kern Eq. 12.42"
+                reg = f"{_corr} (G''={Gam:.3f} kg/m·s, Nr={Nr:.1f}, condensa em {Lfrac*100:.0f}% do comprimento dos tubos)"
             else:
                 p = liq if tipo == "mono_liq" else vap
                 hs = hs_mono(p); reg = f"{metodo.upper()} monofásico"
@@ -942,7 +1031,8 @@ def bloco_geometria_bd(geo, fat):
          f"  Sm = {geo['Sm']:.5f} m²   Sb = {geo['Sb']:.5f} m²   Sw = {geo['Sw']:.5f} m²",
          f"  Ssb = {geo['Ssb']:.5f} m²  (Lsb diametral = {geo['Lsb']*1000:.2f} mm)",
          f"  Stb = {geo['Stb']:.5f} m²  (δtb radial   = {geo['Ltb']*1000:.2f} mm)",
-         f"  Lbb = {geo['Lbb']*1000:.1f} mm   Nb = {geo['Nb']}",
+         f"  Lbb = {geo['Lbb']*1000:.1f} mm   Nb = {geo['Nb']}  "
+         f"[(L − Lbi − Lbo)/Lbc + 1 = {geo['Nb_real']:.2f}]",
          f"  Fc  = {geo['Fc']:.3f}  ({'informado: tubos em escoamento cruzado' if geo['Fc_manual'] else 'calculado, Eq. 6.35'})",
          f"  Nc  = {geo['Ntcc']:.2f} fileiras entre pontas de chicana   Ncw = {geo['Ntcw']:.2f}"]
     return "\n".join(L)
@@ -1413,7 +1503,11 @@ def render_aba(prefixo, metodo):
 
             Lta_v = pf(f"{prefixo}_Lta"); Lbc_v = pf(f"{prefixo}_Lbc")
             if Lbc_v > 0:
-                Nb_calc = max(1, int(Lta_v/Lbc_v) - 1)
+                if metodo == "bd":   # [ALTERAÇÃO 4] considera Lbi e Lbo
+                    _lbi = pf(f"{prefixo}_Lbi", Lbc_v) or Lbc_v; _lbo = pf(f"{prefixo}_Lbo", Lbc_v) or Lbc_v
+                    Nb_calc = max(1, int((Lta_v - _lbi - _lbo)/Lbc_v + 1 + 1e-9))
+                else:
+                    Nb_calc = max(1, int(Lta_v/Lbc_v) - 1)
                 st.markdown(f"<div class='card-ok'>Nb calculado = <b>{Nb_calc}</b> chicanas</div>",
                             unsafe_allow_html=True)
 
@@ -1511,8 +1605,10 @@ def render_aba(prefixo, metodo):
                         st.caption("Zonas: BD/Kern no vapor e no líquido; condensação por Kern/Nusselt. "
                                    "Informe Tsat e as propriedades do fluido quente (ou busque no CoolProp).")
                         pradio("Correlação de condensação:", f"{prefixo}_cond_corr",
-                               ["Kern com Nr (conservador)", "Serth Eq. 11.35–11.36 (sem Nr)"], horizontal=True,
-                               help="Feixe horizontal. 'Kern com Nr' inclui o fator Nr^(-1/6); a de Serth não.")
+                               ["Kern (1950) Eq. 12.42 — recomendado", "Kern + correção Nr^(−1/6) (conservador)"],
+                               horizontal=True,
+                               help="Feixe horizontal. Eq. 12.42 do Kern: o efeito do feixe já está em G'' = W/(L·Nt^(2/3)). "
+                                    "A opção com Nr^(−1/6) (Coulson & Richardson) aplica uma redução adicional, ~35–40 % menor.")
                         ptext("Tsat (°C)", f"{prefixo}_Tsat")
                         if COOLPROP_DISPONIVEL:
                             cf1, cf2 = st.columns([2, 1])
@@ -1615,9 +1711,17 @@ def nota_laminar(Res, metodo):
     if metodo == "bd" and Res < 100:
         return ("\n  ⚠️ Casco LAMINAR (Re < 100): Jr (interpolado p/ 20<Re<100), Jc/Jl/Jb/Js e o ΔP do casco\n"
                 "     têm incerteza alta nessa faixa; use o ΔPs só como ordem de grandeza.\n")
-    if metodo == "kern" and Res < 400:
-        return ("\n  ⚠️ Kern fora da faixa (Re < 400): o fator de atrito é mantido em Re = 400;\n"
-                "     o ΔPs é só ordem de grandeza.\n")
+    if metodo == "kern":
+        # [ALTERAÇÃO 5] aviso também para o hs (antes só havia aviso para o ΔPs)
+        txt = ""
+        if Res < KERN_RE_MIN:
+            txt += (f"\n  ⚠️ Kern fora da faixa de validade do hs (Re = {Res:.0f} < 2000):\n"
+                    "     a correlação 0,36·Re^0,55·Pr^(1/3) foi ajustada para 2·10³ < Re < 10⁶.\n"
+                    "     Em escoamento laminar no casco o hs é só estimativa; prefira o Bell-Delaware.\n")
+        if Res < 400:
+            txt += ("  ⚠️ Kern fora da faixa (Re < 400): o fator de atrito é mantido em Re = 400;\n"
+                    "     o ΔPs é só ordem de grandeza.\n")
+        return txt
     return ""
 
 def _executar_zonas(prefixo, metodo):
@@ -1641,7 +1745,7 @@ def _executar_zonas(prefixo, metodo):
     theta = int(_V(f"{prefixo}_theta", 30)); Np = int(_V(f"{prefixo}_Np", 1))
     kpar = MATERIAIS.get(_V(f"{prefixo}_material", "Aço Carbono"), 50.0)
     G = {"d":d,"di":di,"Lta":Lta,"Ltp":Ltp,"Ds":Ds,"Nt":Nt,"Np":Np,"kp":kpar,
-         "cond_nr": str(_V(f"{prefixo}_cond_corr", "Kern")).startswith("Kern"),
+         "cond_nr": "Nr" in str(_V(f"{prefixo}_cond_corr", "Kern (1950)")),   # [ALTERAÇÃO 7]
          "Rfe":pf(f"{prefixo}_Rfe", 0.0002),"Rfi":pf(f"{prefixo}_Rfi", 0.0002)}
     notas = []
     if metodo == "kern":
@@ -1726,10 +1830,111 @@ def _executar_zonas(prefixo, metodo):
         "  Perfil do frio em contracorrente: sub-resfriamento → condensação → dessuperaquecimento\n"
         "  Por zona: LMTD_i, F_i (F=1 se quente isotérmico), 1/U_i = 1/hs_i + Rf + Rparede + (d/di)(1/ht + Rfi)\n"
         "  A_i = Q_i/(U_i·F_i·LMTD_i) ;  A = Σ A_i\n"
-        "  h condensação (Kern): 0,95·kl·[ρl(ρl−ρv)g/(μl·Γ')]^(1/3)·Nr^(−1/6), Γ' = W/(L·Nt^(2/3))\n"
+        + ("  h condensação (Kern+Nr): 0,95·kl·[ρl(ρl−ρv)g/(μl·G'')]^(1/3)·Nr^(−1/6), G'' = W/(L·Nt^(2/3))\n"
+           if G["cond_nr"] else
+           "  h condensação (Kern, Eq. 12.42): 1,5·[kl³ρl(ρl−ρv)g/μl²]^(1/3)·(4G''/μl)^(−1/3), G'' = W/(L·Nt^(2/3))\n")
         + linhas)
     st.success("✅ Cálculo concluído! Veja os resultados na coluna direita.")
     st.rerun()
+
+def calcular_monofasico(metodo, p):
+    """[ALTERAÇÃO 6] Cálculo completo (sem interface) para Kern ('kern') ou Bell-Delaware ('bd').
+    p: dicionário com as entradas, em SI (°C para temperaturas):
+       Thi, Tci, Tsaida, obj ('Th,o' ou 'Tc,o'), rho_s, mu_s, cp_s, k_s, ms,
+       rho_t, mu_t, cp_t, k_t, mt, d, e, Lta, Ltp, Ds, Lbc, Nt, theta, Np, kpar,
+       Rfe, Rfi, [Q_lat_s, Q_lat_t]
+       BD: Bc, Lbi, Lbo, Nss, [Lbb_m, Ltb_m, Lsb_m, Nt_cross]
+       Opcionais: mu_s_fn, mu_t_fn — funções μ(T °C) do banco de fluidos (μ na parede real);
+                  phi_s, phi_t — fixam φ = (μ/μw)^0,14 (para reproduzir exemplos de livro).
+    Retorna um dicionário com todos os resultados intermediários e finais.
+    Usado pela interface e pelo script verificacao.py."""
+    g = lambda k, dflt=None: p.get(k, dflt)
+    Thi, Tci, Tsaida, obj = g("Thi"), g("Tci"), g("Tsaida"), g("obj", "Th,o")
+    rho_s, mu_s, cp_s, k_s, ms = g("rho_s"), g("mu_s"), g("cp_s"), g("k_s"), g("ms")
+    rho_t, mu_t, cp_t, k_t, mt = g("rho_t"), g("mu_t"), g("cp_t"), g("k_t"), g("mt")
+    d, e_p, Lta, Ltp, Ds, Lbc = g("d"), g("e"), g("Lta"), g("Ltp"), g("Ds"), g("Lbc")
+    Nt, theta, Np = int(g("Nt")), int(g("theta", 30)), int(g("Np", 1))
+    kpar, Rfe, Rfi = g("kpar", 50.0), g("Rfe", 0.0), g("Rfi", 0.0)
+    di = d - 2*e_p
+    if di <= 0: raise ValueError("di ≤ 0 — verifique d_o e espessura e")
+
+    Tho, Tco, Q_W = resolver_T(obj, Thi, Tci, Tsaida, ms, cp_s, mt, cp_t,
+                               g("Q_lat_s", 0.0), g("Q_lat_t", 0.0))
+    dTlm = lmtd(Thi, Tho, Tci, Tco)
+    F = fator_F(Thi, Tho, Tci, Tco, Np)
+    Tbs = (Thi + Tho)/2; Tbt = (Tci + Tco)/2
+    Rp = d*math.log(d/di)/(2*kpar)
+    out = {"Tho":Tho, "Tco":Tco, "Q":Q_W, "dTlm":dTlm, "F":F, "Tbs":Tbs, "Tbt":Tbt, "di":di}
+
+    # [ALTERAÇÃO 9] μ(T) real do banco/CoolProp (opcional) e φ fixo (opcional, p/ verificação com livro)
+    fs_, ft_ = g("mu_s_fn"), g("mu_t_fn")
+    out["mu_w_metodo"] = {"s": "banco de fluidos" if fs_ else "Andrade (estimativa)",
+                          "t": "banco de fluidos" if ft_ else "Andrade (estimativa)"}
+    def _fixar_phi(mw):
+        for lado, chave_phi, chave_mw, mu_b in (("s","phi_s","mwq",mu_s), ("t","phi_t","mwf",mu_t)):
+            ph = g(chave_phi)
+            if ph:
+                mw[chave_mw] = mu_b/ph**(1/0.14)
+                mw["phq" if lado == "s" else "phf"] = ph
+                out["mu_w_metodo"][lado] = "φ informado"
+
+    if metodo == "kern":
+        geo0 = kern_geo(d, di, Lta, Ltp, theta, Ds, Lbc, Np)
+        # [ALTERAÇÃO 2] φ do casco entra no hs (antes não entrava)
+        def hck(mw): return kern_casco(ms, mu_s, cp_s, k_s, geo0, phi=(mu_s/mw)**0.14)["hs"]
+        def htk(mw): return kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw, d, di, Lta, Nt, Np)["ht"]
+        mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T, mu_fn=fs_),
+                     lambda T: mu_parede(mu_t, Tbt, T, mu_fn=ft_), hck, htk)
+        _fixar_phi(mw)
+        casco = kern_casco(ms, mu_s, cp_s, k_s, geo0, phi=mw["phq"])
+        Nb = max(1, int(Lta/Lbc)-1) if Lbc > 0 else 1
+        press = kern_dPs(casco["Gs"], casco["Res"], rho_s, Ds, geo0["Dhs"], mu_s, mw["mwq"], Nb)
+        out.update(geo=geo0, fat=None, label="KERN")
+    else:
+        Bc, Nss = g("Bc", 25), g("Nss", 2)
+        Lbi, Lbo = g("Lbi") or Lbc, g("Lbo") or Lbc
+        geo = bd_geo(d, Lta, Ltp, theta, Ds, Bc, Lbc, Lbi, Lbo, Nt, Nss,
+                     g("Lbb_m"), g("Ltb_m", 4e-4) or 4e-4, g("Lsb_m"), g("Nt_cross"))
+        Nb = geo["Nb"]; Res_e = d*(ms/geo["Sm"])/mu_s
+        fat = bd_fat(geo, Res_e, Nb, geo["Lbi"], geo["Lbo"], Lbc, Nss)
+        def hcb(mw): return bd_casco(ms, mu_s, cp_s, k_s, mw, d, Ltp, theta, geo, fat)["hs"]
+        def htb(mw): return kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw, d, di, Lta, Nt, Np)["ht"]
+        mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T, mu_fn=fs_),
+                     lambda T: mu_parede(mu_t, Tbt, T, mu_fn=ft_), hcb, htb)
+        _fixar_phi(mw)
+        casco = bd_casco(ms, mu_s, cp_s, k_s, mw["mwq"], d, Ltp, theta, geo, fat)
+        press = bd_dPs(ms, rho_s, mu_s, mw["mwq"], d, Ltp, theta, geo, fat)
+        PJ = fat["Jc"]*fat["Jl"]*fat["Jb"]*fat["Js"]*fat["Jr"]
+        out.update(geo=geo, fat=fat, PJ=PJ, label="BELL-DELAWARE")
+
+    tubos = kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw["mwf"], d, di, Lta, Nt, Np)
+    glob = coef_global(casco["hs"], tubos["ht"], d, di, kpar, Q_W, dTlm, Rfe, Rfi, F)
+    Ai = Nt*math.pi*d*Lta
+    ex = (Ai/glob["A"]-1)*100 if glob["A"] > 0 else 0
+    out.update(mw=mw, casco=casco, press=press, tubos=tubos, glob=glob, Ai=Ai, ex=ex, Nb=Nb,
+               hs=casco["hs"], ht=tubos["ht"], U=glob["U"], A=glob["A"],
+               dPs=press["dPs"], dPt=tubos["dPt"], Res=casco["Res"], Ret=tubos["Ret"])
+    return out
+
+def _mu_fn_ui(prefixo, lado, mu_digitado):
+    """[ALTERAÇÃO 9] Devolve μ(T) do banco de fluidos para o lado ('s' ou 't'), mas só se o μ
+    digitado vier desse fluido (diferença < 2 % na T de referência). Caso contrário (ex.:
+    propriedades de livro digitadas à mão), devolve None e o programa usa a estimativa de Andrade."""
+    fluido = _V(f"{prefixo}_fluido_{lado}", "")
+    Tref = pf(f"{prefixo}_Tref_{lado}", None); P = pf(f"{prefixo}_Pref_{lado}", 101.325)*1000.0
+    if not fluido or Tref is None or mu_digitado <= 0: return None
+    try:
+        p0 = propriedades_fluido(fluido, Tref, P)
+        if abs(p0["mu"]/mu_digitado - 1) > 0.02: return None
+        fase0 = p0.get("fase")
+    except Exception:
+        return None
+    def f(T):
+        p = propriedades_fluido(fluido, T, P)
+        if fase0 and p.get("fase") != fase0:
+            raise ValueError("mudança de fase na parede")
+        return p["mu"]
+    return f
 
 def _executar_calculo(prefixo, metodo):
     # Valida TODAS as páginas
@@ -1776,57 +1981,35 @@ def _executar_calculo(prefixo, metodo):
         Q_lat_s = ms * lam * frac if "Casco" in lado_fase else 0
         Q_lat_t = mt * lam * frac if "Tubo" in lado_fase else 0
 
-        Tho, Tco, Q_W = resolver_T(obj, Thi, Tci, Tsaida, ms, cp_s, mt, cp_t, Q_lat_s, Q_lat_t)
-        dTlm = lmtd(Thi, Tho, Tci, Tco)
-        F = fator_F(Thi, Tho, Tci, Tco, Np)
-        Tbs = (Thi + Tho)/2; Tbt = (Tci + Tco)/2
-        Rp = d*math.log(d/di)/(2*kpar)
-
         Rfe = pf(f"{prefixo}_Rfe", 0.0002)
         Rfi = pf(f"{prefixo}_Rfi", 0.0002)
 
-        if metodo == "kern":
-            geo0 = kern_geo(d, di, Lta, Ltp, theta, Ds, Lbc, Np)
-            def hck(mw): return kern_casco(ms, mu_s, cp_s, k_s, geo0)["hs"]
-            def htk(mw): return kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw, d, di, Lta, Nt, Np)["ht"]
-            mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T),
-                         lambda T: mu_parede(mu_t, Tbt, T), hck, htk)
-            casco = kern_casco(ms, mu_s, cp_s, k_s, geo0)
-            Nb = max(1, int(Lta/Lbc)-1) if Lbc > 0 else 1
-            press = kern_dPs(casco["Gs"], casco["Res"], rho_s, Ds, geo0["Dhs"], mu_s, mw["mwq"], Nb)
-            tubos = kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw["mwf"], d, di, Lta, Nt, Np)
-            glob = coef_global(casco["hs"], tubos["ht"], d, di, kpar, Q_W, dTlm, Rfe, Rfi, F)
-            Ai = Nt * math.pi * d * Lta
-            ex = (Ai/glob["A"]-1)*100 if glob["A"] > 0 else 0
-            dPs_kPa = press["dPs"]/1000; dPt_kPa = tubos["dPt"]/1000
-            label = "KERN"
-            fat = None
-        else:
-            Bc = pf(f"{prefixo}_Bc", 25); Lbi = pf(f"{prefixo}_Lbi", Lbc)
-            Lbo = pf(f"{prefixo}_Lbo", Lbc); Nss = pf(f"{prefixo}_Nss", 2)
-            Lbb_m = pf(f"{prefixo}_Lbb")/1000 if pf(f"{prefixo}_Lbb") > 0 else None
-            Ltb_m = (pf(f"{prefixo}_Ltb", 0.4) if pf(f"{prefixo}_Ltb", 0.4) > 0 else 0.4)/1000
-            Lsb_m = pf(f"{prefixo}_Lsb")/1000 if pf(f"{prefixo}_Lsb") > 0 else None
-            Nt_cross = pf(f"{prefixo}_NtCross") if pf(f"{prefixo}_NtCross") > 0 else None
-            geo0 = bd_geo(d, Lta, Ltp, theta, Ds, Bc, Lbc, Lbi, Lbo, Nt, Nss, Lbb_m, Ltb_m, Lsb_m, Nt_cross)
-            Gs0 = ms/geo0["Sm"]; Res0 = d*Gs0/mu_s
-            fat0 = bd_fat(geo0, Res0, geo0["Nb"], Lbi, Lbo, Lbc, Nss)
-            def hcb(mw): return bd_casco(ms, mu_s, cp_s, k_s, mw, d, Ltp, theta, geo0, fat0)["hi"]
-            def htb(mw): return kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw, d, di, Lta, Nt, Np)["ht"]
-            mw = mu_iter(Tbs, Tbt, Rp, lambda T: mu_parede(mu_s, Tbs, T),
-                         lambda T: mu_parede(mu_t, Tbt, T), hcb, htb)
-            geo = bd_geo(d, Lta, Ltp, theta, Ds, Bc, Lbc, Lbi, Lbo, Nt, Nss, Lbb_m, Ltb_m, Lsb_m, Nt_cross)
-            Nb = geo["Nb"]; Res_e = d*(ms/geo["Sm"])/mu_s
-            fat = bd_fat(geo, Res_e, Nb, Lbi, Lbo, Lbc, Nss)
-            casco = bd_casco(ms, mu_s, cp_s, k_s, mw["mwq"], d, Ltp, theta, geo, fat)
-            press = bd_dPs(ms, rho_s, mu_s, mw["mwq"], d, Ltp, theta, geo, fat)
-            tubos = kern_tubos(mt, rho_t, mu_t, cp_t, k_t, mw["mwf"], d, di, Lta, Nt, Np)
-            glob = coef_global(casco["hs"], tubos["ht"], d, di, kpar, Q_W, dTlm, Rfe, Rfi, F)
-            Ai = Nt * math.pi * d * Lta
-            ex = (Ai/glob["A"]-1)*100 if glob["A"] > 0 else 0
-            dPs_kPa = press["dPs"]/1000; dPt_kPa = tubos["dPt"]/1000
-            PJ = fat["Jc"]*fat["Jl"]*fat["Jb"]*fat["Js"]*fat["Jr"]
-            label = "BELL-DELAWARE"
+        dados = dict(Thi=Thi, Tci=Tci, Tsaida=Tsaida, obj=obj,
+                     rho_s=rho_s, mu_s=mu_s, cp_s=cp_s, k_s=k_s, ms=ms,
+                     rho_t=rho_t, mu_t=mu_t, cp_t=cp_t, k_t=k_t, mt=mt,
+                     d=d, e=e_p, Lta=Lta, Ltp=Ltp, Ds=Ds, Lbc=Lbc, Nt=Nt,
+                     theta=theta, Np=Np, kpar=kpar, Rfe=Rfe, Rfi=Rfi,
+                     Q_lat_s=Q_lat_s, Q_lat_t=Q_lat_t)
+        if metodo == "bd":
+            dados.update(
+                Bc=pf(f"{prefixo}_Bc", 25), Lbi=pf(f"{prefixo}_Lbi", Lbc),
+                Lbo=pf(f"{prefixo}_Lbo", Lbc), Nss=pf(f"{prefixo}_Nss", 2),
+                Lbb_m=pf(f"{prefixo}_Lbb")/1000 if pf(f"{prefixo}_Lbb") > 0 else None,
+                Ltb_m=(pf(f"{prefixo}_Ltb", 0.4) if pf(f"{prefixo}_Ltb", 0.4) > 0 else 0.4)/1000,
+                Lsb_m=pf(f"{prefixo}_Lsb")/1000 if pf(f"{prefixo}_Lsb") > 0 else None,
+                Nt_cross=pf(f"{prefixo}_NtCross") if pf(f"{prefixo}_NtCross") > 0 else None)
+
+        dados["mu_s_fn"] = _mu_fn_ui(prefixo, "s", mu_s)   # [ALTERAÇÃO 9]
+        dados["mu_t_fn"] = _mu_fn_ui(prefixo, "t", mu_t)
+        # [ALTERAÇÃO 6] todo o cálculo está em calcular_monofasico() (testável fora do Streamlit)
+        R_ = calcular_monofasico(metodo, dados)
+        Tho, Tco, Q_W = R_["Tho"], R_["Tco"], R_["Q"]
+        dTlm, F, Tbs, Tbt = R_["dTlm"], R_["F"], R_["Tbs"], R_["Tbt"]
+        mw, casco, press, tubos, glob = R_["mw"], R_["casco"], R_["press"], R_["tubos"], R_["glob"]
+        Ai, ex, Nb, label, fat = R_["Ai"], R_["ex"], R_["Nb"], R_["label"], R_["fat"]
+        dPs_kPa = press["dPs"]/1000; dPt_kPa = tubos["dPt"]/1000
+        if metodo == "bd":
+            geo = R_["geo"]; PJ = R_["PJ"]
 
         # Grava T bulk
         st.session_state[f"{prefixo}_Tbulk_s"] = Tbs
@@ -1859,9 +2042,9 @@ def _executar_calculo(prefixo, metodo):
   Q     = {Q_W/1000:.4f} kW
   LMTD  = {dTlm:.4f} °C
   F     = {F:.4f}   (Np = {Np})
-
+{aviso_F(F, Np)}
 ─── VISCOSIDADE NA PAREDE (iter {mw['it']}) ───
-  {'✓ convergiu' if mw['conv'] else '⚠️ não convergiu'}
+  {'✓ convergiu' if mw['conv'] else '⚠️ não convergiu'}   μw casco: {R_['mu_w_metodo']['s']} · μw tubos: {R_['mu_w_metodo']['t']}
   Tw casco = {mw['Twq']:.2f} °C   μw,s = {mw['mwq']:.3e}   φs = {mw['phq']:.4f}
   Tw tubo  = {mw['Twf']:.2f} °C   μw,t = {mw['mwf']:.3e}   φt = {mw['phf']:.4f}
 
@@ -1916,7 +2099,7 @@ def _executar_calculo(prefixo, metodo):
 
 [ETAPA 3] GEOMETRIA
   di = d_o − 2e = {d:.5f} − 2×{e_p:.5f} = {di:.5f} m
-  Nb = floor(Lta/Lbc) − 1 = {Nb}
+  Nb = {'floor(Lta/Lbc) − 1' if metodo == 'kern' else 'floor((Lta − Lbi − Lbo)/Lbc) + 1'} = {Nb}
 
 [ETAPA 4] COEFICIENTE — CASCO
   Gs = {casco['Gs']:.4f} kg/m²·s   Res = {casco['Res']:.1f}
