@@ -504,7 +504,7 @@ def calcular_zonas(metodo, Thi, Tsat, ms, lam, frac, liq, vap, tub, Tci, mt,
         if tipo == "cond":
             com_Nr_opt = G.get("cond_nr", False)
             hs, Gam, Nr = h_condensacao_kern(Wc, liq["k"], liq["rho"], vap["rho"], liq["mu"], Lta, Nt, Ds, Ltp, com_Nr=com_Nr_opt)
-            reg = f"Kern/Nusselt (Γ'={Gam:.3f} kg/m·s, Nr={Nr:.1f}, correção_Nr={'Sim' if com_Nr_opt else 'Não'})"
+            reg = f"Kern/Nusselt (Γ'={Gam:.6f} kg/m·s, Nr={Nr:.1f}, correção_Nr={'Sim' if com_Nr_opt else 'Não'})"
         else:
             p = liq if tipo == "mono_liq" else vap
             hs = hs_mono(p); reg = f"{metodo.upper()} monofásico"
