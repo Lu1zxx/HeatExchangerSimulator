@@ -421,14 +421,18 @@ def bd_dPs(ms,rho_s,mu_s,mws,d,Ltp,theta,geo,fat):
 #    (Bell-Delaware NÃO se aplica: foi correlacionado só p/ escoamento monofásico)
 #  · A_total = Σ A_zona ;  F por zona (F = 1 quando o lado quente é isotérmico)
 # ═════════════════════════════════════════════════════════════════
-def h_condensacao_kern(W_cond, kl, rho_l, rho_v, mu_l, Lta, Nt, Ds, Ltp):
-    """h médio de condensação em feixe horizontal (Kern, 1950):
-       h = 0,95·kl·[ρl(ρl−ρv)g/(μl·Γ')]^(1/3)·Nr^(−1/6),  Γ' = W/(L·Nt^(2/3)),
-       Nr ≈ (2/3)·Ds/Ltp  (nº médio de tubos numa coluna vertical)."""
+def h_condensacao_kern(W_cond, kl, rho_l, rho_v, mu_l, Lta, Nt, Ds, Ltp, com_Nr=False):
     g = 9.80665
     Gam = W_cond/(Lta*Nt**(2/3))
     Nr = max(1.0, (2/3)*Ds/Ltp)
-    h = 0.95*kl*(rho_l*(rho_l-rho_v)*g/(mu_l*Gam))**(1/3)*Nr**(-1/6)
+    
+    if com_Nr:
+        # Fórmula conservadora (Coulson & Richardson)
+        h = 0.95*kl*(rho_l*(rho_l-rho_v)*g/(mu_l*Gam))**(1/3)*Nr**(-1/6)
+    else:
+        # Fórmula original de Kern (1950) Eq 12.42
+        h = 1.5*(kl**3*rho_l*(rho_l-rho_v)*g/mu_l**2)**(1/3)*(4*Gam/mu_l)**(-1/3)
+        
     return h, Gam, Nr
 
 def props_saturacao(nome, P_Pa, Thi_C=None, Tci_C=None):
@@ -498,8 +502,9 @@ def calcular_zonas(metodo, Thi, Tsat, ms, lam, frac, liq, vap, tub, Tci, mt,
         if tipo != "cond" and Np > 1 and abs(Th_b-Th_a) > 1e-9:
             F = fator_F(Th_b, Th_a, Tc_a, Tc_b, Np)   # Th,in=Th_b ; Th,out=Th_a
         if tipo == "cond":
-            hs, Gam, Nr = h_condensacao_kern(Wc, liq["k"], liq["rho"], vap["rho"], liq["mu"], Lta, Nt, Ds, Ltp)
-            reg = f"Kern/Nusselt (Γ'={Gam:.3f} kg/m·s, Nr={Nr:.1f})"
+            com_Nr_opt = G.get("cond_nr", False)
+            hs, Gam, Nr = h_condensacao_kern(Wc, liq["k"], liq["rho"], vap["rho"], liq["mu"], Lta, Nt, Ds, Ltp, com_Nr=com_Nr_opt)
+            reg = f"Kern/Nusselt (Γ'={Gam:.3f} kg/m·s, Nr={Nr:.1f}, correção_Nr={'Sim' if com_Nr_opt else 'Não'})"
         else:
             p = liq if tipo == "mono_liq" else vap
             hs = hs_mono(p); reg = f"{metodo.upper()} monofásico"
@@ -1495,7 +1500,13 @@ def render_aba(prefixo, metodo):
                     if str(_V(f"{prefixo}_fase_modelo", "Zonas")).startswith("Zonas"):
                         st.caption("Zonas: BD/Kern no vapor e no líquido; condensação por Kern/Nusselt. "
                                    "Informe Tsat e as propriedades do fluido quente (ou busque no CoolProp).")
-                        ptext("Tsat (°C)", f"{prefixo}_Tsat")
+                        ptext("Tsat (°C)", f"{prefixo}_Tsat")                        
+                        pradio("Correlação de condensação:", f"{prefixo}_cond_corr",
+                               ["Kern (1950) Eq. 12.42 — recomendado", "Kern + correção Nr^(-1/6) (conservador)"],
+                               horizontal=True,
+                               help="Feixe horizontal. Eq. 12.42 do Kern: o efeito do feixe já está em G'' = W/(L·Nt^(2/3)). "
+                                    "A opção com Nr^(-1/6) aplica uma redução adicional, ~35–40 % menor.")
+                      
                         if COOLPROP_DISPONIVEL:
                             cf1, cf2 = st.columns([2, 1])
                             with cf1:
@@ -1623,7 +1634,8 @@ def _executar_zonas(prefixo, metodo):
     theta = int(_V(f"{prefixo}_theta", 30)); Np = int(_V(f"{prefixo}_Np", 1))
     kpar = MATERIAIS.get(_V(f"{prefixo}_material", "Aço Carbono"), 50.0)
     G = {"d":d,"di":di,"Lta":Lta,"Ltp":Ltp,"Ds":Ds,"Nt":Nt,"Np":Np,"kp":kpar,
-         "Rfe":pf(f"{prefixo}_Rfe", 0.0002),"Rfi":pf(f"{prefixo}_Rfi", 0.0002)}
+     "cond_nr": "Nr" in str(_V(f"{prefixo}_cond_corr", "Kern (1950)")),
+     "Rfe":pf(f"{prefixo}_Rfe", 0.0002),"Rfi":pf(f"{prefixo}_Rfi", 0.0002)}
     notas = []
     if metodo == "kern":
         geo0 = kern_geo(d, di, Lta, Ltp, theta, Ds, Lbc, Np)
